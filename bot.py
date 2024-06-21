@@ -4,7 +4,7 @@ from discord.ext import commands
 from collections import defaultdict
 import datetime
 import json
-import os  # 追加
+import os
 
 # 環境変数からトークンを取得
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -28,8 +28,6 @@ last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン
 # アイテムリストの定義（必要に応じて変更可能）
 items = {
     "スタバ500円チケット（ザッキーが送ります）": 5000,  # アイテム名: 必要なポイント数
-    "新しいアイテム2": 10000,
-    "新しいアイテム3": 30000
 }
 
 def save_data():
@@ -178,6 +176,6 @@ async def show_commands(interaction: discord.Interaction):
 @bot.tree.command(name="ショップ", description="販売しているアイテムを表示します")
 async def shop(interaction: discord.Interaction):
     shop_list = '\n'.join([f'{item}: {cost} 🪙' for item, cost in items.items()])
-    await interaction.response.send_message(f'**ショップアイテム一覧**\n{shop_list} 🛒', ephemeral=True)
+    await interaction.response.send_message(f'**ショップアイテム一覧🛒**\n{shop_list} ', ephemeral=True)
 
 bot.run(DISCORD_BOT_TOKEN)
