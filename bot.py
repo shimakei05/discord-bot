@@ -28,7 +28,6 @@ last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン
 # アイテムリストの定義（必要に応じて変更可能）
 items = {
     "スタバ500円チケット（ザッキーが送ります）": 5000,  # アイテム名: 必要なポイント数
-    
 }
 
 def save_data():
@@ -133,14 +132,14 @@ async def show_items(interaction: discord.Interaction):
         response = f'{interaction.user.mention} さんのアイテム: {item_list} 🎁'
         await interaction.response.send_message(response, ephemeral=True)
     else:
-        response = f'{interaction.user.mention} さんはまだアイテムを持っていません。'
+        response = f'{interaction.user.mention} さんはアイテムを持っていません。'
         await interaction.response.send_message(response, ephemeral=True)
 
 @bot.tree.command(name="使用", description="保持しているアイテムを使用します")
 @app_commands.describe(item_name="使用するアイテムの名前")
 async def use_item(interaction: discord.Interaction, item_name: str):
     user_id = interaction.user.id
-    if item_name in user_items[user_id]):
+    if item_name in user_items[user_id]:
         user_items[user_id].remove(item_name)
         response = f'{interaction.user.mention} さんが「{item_name}」を使用しました。残りのアイテム: {", ".join(user_items[user_id])} 🎁'
         await interaction.response.send_message(response, ephemeral=True)
@@ -164,19 +163,19 @@ async def use_item(interaction: discord.Interaction, item_name: str):
 async def show_commands(interaction: discord.Interaction):
     commands_list = """
     **使用可能なコマンド一覧**
-    /ポイント - 現在のポイントを表示します 🪙
-    /ポイント付与 - 他のメンバーにポイントを付与します 🪙
-    /交換 - ポイントを使用してアイテムを交換します ↔️
-    /アイテム - 自分が保持しているアイテムを表示します 🎁
-    /使用 - 保持しているアイテムを使用します 🎁
-    /コマンド - 使用できるコマンド一覧を表示します
-    /ショップ - 販売しているアイテムを表示します 🛒
+    /ポイント - 現在のポイントを表示 🪙
+    /ポイント付与 - 他のメンバーにポイントを付与 🪙
+    /交換 - ポイントとアイテムを交換。アイテム名はショップからコピペしてください ↔️
+    /アイテム - 自分が保持しているアイテムを表示 🎁
+    /使用 - 保持しているアイテムを使用 🎁
+    /コマンド - 使用できるコマンド一覧を表示
+    /ショップ - 販売中のアイテムを表示 🛒
     """
     await interaction.response.send_message(commands_list, ephemeral=True)
 
 @bot.tree.command(name="ショップ", description="販売しているアイテムを表示します")
 async def shop(interaction: discord.Interaction):
     shop_list = '\n'.join([f'{item}: {cost} 🪙' for item, cost in items.items()])
-    await interaction.response.send_message(f'**ショップアイテム一覧**\n{shop_list} 🛒', ephemeral=True)
+    await interaction.response.send_message(f'**ショップアイテム一覧🛒**\n{shop_list} ', ephemeral=True)
 
 bot.run(DISCORD_BOT_TOKEN)
