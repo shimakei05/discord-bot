@@ -4,7 +4,7 @@ from discord.ext import commands
 from collections import defaultdict
 import datetime
 import json
-import os  # 追加
+import os
 
 # 環境変数からトークンを取得
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -141,7 +141,7 @@ async def show_items(interaction: discord.Interaction):
 @app_commands.describe(item_name="使用するアイテムの名前")
 async def use_item(interaction: discord.Interaction, item_name: str):
     user_id = interaction.user.id
-    if item_name in user_items[user_id]:
+    if item_name in user_items[user_id]):
         user_items[user_id].remove(item_name)
         response = f'{interaction.user.mention} さんが「{item_name}」を使用しました。残りのアイテム: {", ".join(user_items[user_id])} 🎁'
         await interaction.response.send_message(response, ephemeral=True)
