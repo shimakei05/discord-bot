@@ -22,34 +22,32 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ポイントとアイテムを保存する辞書
 user_points = defaultdict(int)
-user_items = defaultdict(list)
 last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン日を保存する辞書
-
-# アイテムリストの定義（必要に応じて変更可能）
-items = {
-    "スタバ500円チケット（ザッキーが送ります）": 5000,  # アイテム名: 必要なポイント数
-}
+login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
+weekly_message_count = defaultdict(int)  # 1週間のメッセージ数を保存する辞書
 
 def save_data():
-    """ポイントとアイテムのデータを保存"""
+    """ポイントとデータを保存"""
     data = {
         "user_points": dict(user_points),
-        "user_items": {k: v for k, v in user_items.items()},
-        "last_login_date": {str(k): str(v) for k, v in last_login_date.items()}
+        "last_login_date": {str(k): str(v) for k, v in last_login_date.items()},
+        "login_streaks": dict(login_streaks),
+        "weekly_message_count": dict(weekly_message_count)
     }
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
     print("データが保存されました: ", data)
 
 def load_data():
-    """ポイントとアイテムのデータを読み込む"""
-    global user_points, user_items, last_login_date
+    """ポイントとデータを読み込む"""
+    global user_points, last_login_date, login_streaks, weekly_message_count
     try:
         with open(DATA_FILE, "r") as f:
             data = json.load(f)
             user_points.update(data["user_points"])
-            user_items.update(data["user_items"])
             last_login_date.update({int(k): datetime.datetime.fromisoformat(v).date() for k, v in data["last_login_date"].items()})
+            login_streaks.update(data["login_streaks"])
+            weekly_message_count.update(data["weekly_message_count"])
         print("データが読み込まれました: ", data)
     except FileNotFoundError:
         print("データファイルが見つかりません。新しいファイルを作成します。")
@@ -66,116 +64,112 @@ async def on_ready():
         print(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
     print(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
-    print(f'アイテムデータ: {user_items}')  # 追加: アイテムデータの確認
 
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
 
-    # メッセージを投稿するごとにポイントを30追加
-    user_points[message.author.id] += 30
+    user_id = message.author.id
+    today = datetime.datetime.utcnow().date()
+
+    # メッセージを投稿するごとにポイントを20追加
+    user_points[user_id] += 20
+    weekly_message_count[user_id] += 1
     save_data()  # データの保存
 
     # 日付が変わっていたらログインボーナスを付与
-    today = datetime.datetime.utcnow().date()
-    last_login = last_login_date[message.author.id]
+    last_login = last_login_date[user_id]
     if last_login is None or last_login != today:
-        user_points[message.author.id] += 100
-        last_login_date[message.author.id] = today
-        await message.author.send(f'ログインボーナスとして 100 🪙 ポイントを獲得しました！現在のポイント: {user_points[message.author.id]} 🪙')
+        user_points[user_id] += 100
+        if last_login is None or (today - last_login).days > 1:
+            login_streaks[user_id] = 1
+        else:
+            login_streaks[user_id] += 1
+
+        streak_days = login_streaks[user_id]
+        if streak_days == 3:
+            user_points[user_id] += 100
+        elif streak_days == 5:
+            user_points[user_id] += 200
+        elif streak_days == 10:
+            user_points[user_id] += 400
+            login_streaks[user_id] = 0
+
+        last_login_date[user_id] = today
+        await message.author.send(f'ログインボーナスとして 100 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
         save_data()  # データの保存
 
     # 通常のメッセージ処理
     await bot.process_commands(message)
 
 @bot.tree.command(name="ポイント", description="現在のポイントを表示します")
-async def points(interaction: discord.Interaction):
-    user_id = interaction.user.id
-    points = user_points[user_id]
-    print("ポイントを表示します: ", user_points)  # デバッグ用メッセージ
-    await interaction.response.send_message(f'{interaction.user.mention} あなたのポイント: {points} 🪙', ephemeral=True)
+@app_commands.describe(member="ポイントを確認するメンバー")
+async def points(interaction: discord.Interaction, member: discord.Member = None):
+    if member:
+        user_id = member.id
+        points = user_points[user_id]
+        await interaction.response.send_message(f'{member.mention} のポイント: {points} 🪙', ephemeral=True)
+    else:
+        user_id = interaction.user.id
+        points = user_points[user_id]
+        await interaction.response.send_message(f'{interaction.user.mention} あなたのポイント: {points} 🪙', ephemeral=True)
 
-@bot.tree.command(name="ポイント付与", description="他のメンバーにポイントを付与します")
+@bot.tree.command(name="ポイント付与", description="他のメンバーにポイントをプレゼントします")
 @app_commands.describe(member="ポイントを付与するメンバー", points="付与するポイント数")
 async def give_points(interaction: discord.Interaction, member: discord.Member, points: int):
     user_points[member.id] += points
     save_data()  # データの保存
-    print("ポイント付与: ", user_points)  # デバッグ用メッセージ
-    await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントを付与しました。現在のポイント: {user_points[member.id]} 🪙')
+    await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
 
-@bot.tree.command(name="交換", description="ポイントを使用してアイテムを交換します")
-@app_commands.describe(item_name="交換するアイテムの名前")
-async def exchange(interaction: discord.Interaction, item_name: str):
-    user_id = interaction.user.id
-    if item_name in items:
-        cost = items[item_name]
-        if user_points[user_id] >= cost:
-            user_points[user_id] -= cost
-            user_items[user_id].append(item_name)
-            response = f'{interaction.user.mention} さんが {cost} 🪙 ポイントで「{item_name}」を交換しました。残りのポイント: {user_points[user_id]} 🪙'
-            await interaction.response.send_message(response, ephemeral=True)
-            save_data()  # データの保存
-            print("交換後のデータ: ", user_points, user_items)  # デバッグ用メッセージ
-        else:
-            response = f'{interaction.user.mention} さん、ポイントが不足しています。「{item_name}」を交換するには {cost} 🪙 ポイントが必要です。'
-            await interaction.response.send_message(response, ephemeral=True)
-    else:
-        response = f'{interaction.user.mention} さん、指定されたアイテムは存在しません。利用可能なアイテム: {", ".join(items.keys())}'
-        await interaction.response.send_message(response, ephemeral=True)
+@bot.tree.command(name="ランキング", description="所持ポイントと1週間メッセージ送信数のランキングを表示します")
+async def ranking(interaction: discord.Interaction):
+    rankings = sorted(user_points.items(), key=lambda x: x[1], reverse=True)[:5]
+    message_counts = sorted(weekly_message_count.items(), key=lambda x: x[1], reverse=True)[:5]
+    response = "**ポイントランキング**\n"
+    for i, (user_id, points) in enumerate(rankings):
+        user = await bot.fetch_user(user_id)
+        response += f'{i+1}. {user.name}: {points} 🪙\n'
+    response += "\n**メッセージ数ランキング**\n"
+    for i, (user_id, count) in enumerate(message_counts):
+        user = await bot.fetch_user(user_id)
+        response += f'{i+1}. {user.name}: {count} メッセージ\n'
+    await interaction.response.send_message(response, ephemeral=True)
 
-@bot.tree.command(name="アイテム", description="自分が保持しているアイテムを表示します")
-async def show_items(interaction: discord.Interaction):
-    user_id = interaction.user.id
-    if user_items[user_id]:
-        item_list = ', '.join(user_items[user_id])
-        response = f'{interaction.user.mention} さんのアイテム: {item_list} 🎁'
-        await interaction.response.send_message(response, ephemeral=True)
-    else:
-        response = f'{interaction.user.mention} さんはアイテムを持っていません。'
-        await interaction.response.send_message(response, ephemeral=True)
-
-@bot.tree.command(name="使用", description="保持しているアイテムを使用します")
-@app_commands.describe(item_name="使用するアイテムの名前")
-async def use_item(interaction: discord.Interaction, item_name: str):
-    user_id = interaction.user.id
-    if item_name in user_items[user_id]:
-        user_items[user_id].remove(item_name)
-        response = f'{interaction.user.mention} さんが「{item_name}」を使用しました。残りのアイテム: {", ".join(user_items[user_id])} 🎁'
-        await interaction.response.send_message(response, ephemeral=True)
-        save_data()  # データの保存
-        print("使用後のデータ: ", user_points, user_items)  # デバッグ用メッセージ
-        
-        # アイテム使用の具体的な処理をここに追加
-        # 例: ログに記録する
-        with open("used_items_log.txt", "a") as log_file:
-            log_file.write(f'{interaction.user} used {item_name} on {datetime.datetime.now()}\n')
-
-        # さらに具体的な処理（例: カウンセリングの予約）
-        if item_name == "カウンセリング一回追加チケット":
-            # ここにカウンセリング予約の具体的な処理を記述
-            await interaction.response.send_message(f'{interaction.user.mention} さん、カウンセリングの予約が完了しました。☝️', ephemeral=True)
-    else:
-        response = f'{interaction.user.mention} さんは「{item_name}」を持っていません。'
-        await interaction.response.send_message(response, ephemeral=True)
-
-@bot.tree.command(name="コマンド", description="使用できるコマンド一覧を表示します")
-async def show_commands(interaction: discord.Interaction):
+@bot.tree.command(name="コマンド・説明", description="使用できるコマンド一覧とポイントの説明を表示します")
+async def show_commands_description(interaction: discord.Interaction):
     commands_list = """
     **使用可能なコマンド一覧**
     /ポイント - 現在のポイントを表示 🪙
-    /ポイント付与 - 他のメンバーにポイントを付与 🪙
-    /交換 - ポイントとアイテムを交換。アイテム名はショップからコピペしてください ↔️
-    /アイテム - 自分が保持しているアイテムを表示 🎁
-    /使用 - 保持しているアイテムを使用 🎁
-    /コマンド - 使用できるコマンド一覧を表示
-    /ショップ - 販売中のアイテムを表示 🛒
+    /ポイント付与 - 他のメンバーにポイントをプレゼント 🪙
+    /ランキング - トップ5のポイントとメッセージ数のランキングを表示 👑
+    /コマンド・説明 - 使用できるコマンド一覧とポイントの説明を表示
+    /ショップ - 商品交換リンクを表示 🛒
+
+    **ポイントの説明**
+    その日初めてメッセージを送った時に100ポイント、1メッセージ送るごとに20ポイントをワレカラくんから貰えます。
+    また連続3日メッセージを送ったら100ポイント、5日で200ポイント、10日で400ポイントの連続ログインボーナスをプレゼント🪙
+    「/」をつけてコマンドを送ると、ワレカラくんがあなただけに見えるメッセージを送ります📩
+    「/ショップ」で、ポイントを交換できます。色々交換できるものも増やしていきたいと思っています。
+    「私ができること（占い、セラピーとか、イラストなどなど…）も交換する内容に加えたい！」という人はザッキーにご一報ください！
     """
     await interaction.response.send_message(commands_list, ephemeral=True)
 
-@bot.tree.command(name="ショップ", description="販売しているアイテムを表示します")
+@bot.tree.command(name="ショップ", description="商品交換リンクを表示します")
 async def shop(interaction: discord.Interaction):
-    shop_list = '\n'.join([f'{item}: {cost} 🪙' for item, cost in items.items()])
-    await interaction.response.send_message(f'**ショップアイテム一覧🛒**\n{shop_list} ', ephemeral=True)
+    response = "リンク先から交換可能なアイテム一覧をご確認ください🛒\nhttps://forms.gle/gtUC7Au8KfWenXrD6"
+    await interaction.response.send_message(response, ephemeral=True)
+
+# 管理者向けのポイントマイナス機能
+async def subtract_points(ctx, member: discord.Member, points: int):
+    if ctx.author.guild_permissions.administrator:
+        user_points[member.id] -= points
+        save_data()  # データの保存
+        await member.send(f'{ctx.author.name}が{points}ポイントを引きました。')
+        await ctx.send(f'{member.mention}のポイントが{points}減りました。', ephemeral=True)
+    else:
+        await ctx.send('このコマンドを実行する権限がありません。', ephemeral=True)
+
+bot.tree.command(name="ポイント減算", description="他のメンバーのポイントを減算します")(subtract_points)
 
 bot.run(DISCORD_BOT_TOKEN)
