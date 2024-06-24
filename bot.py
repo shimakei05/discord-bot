@@ -136,14 +136,14 @@ async def ranking(interaction: discord.Interaction):
         response += f'{i+1}. {user.name}: {count} メッセージ\n'
     await interaction.response.send_message(response, ephemeral=True)
 
-@bot.tree.command(name="コマンド・説明", description="使用できるコマンド一覧とポイントの説明を表示します")
+@bot.tree.command(name="コマンド-説明", description="使用できるコマンド一覧とポイントの説明を表示します")
 async def show_commands_description(interaction: discord.Interaction):
     commands_list = """
     **使用可能なコマンド一覧**
     /ポイント - 現在のポイントを表示 🪙
     /ポイント付与 - 他のメンバーにポイントをプレゼント 🪙
     /ランキング - トップ5のポイントとメッセージ数のランキングを表示 👑
-    /コマンド・説明 - 使用できるコマンド一覧とポイントの説明を表示
+    /コマンド-説明 - 使用できるコマンド一覧とポイントの説明を表示
     /ショップ - 商品交換リンクを表示 🛒
 
     **ポイントの説明**
