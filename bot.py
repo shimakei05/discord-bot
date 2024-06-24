@@ -12,6 +12,9 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 # データファイルのパス
 DATA_FILE = "user_data.json"
 
+# 管理者のユーザーID
+ADMIN_USER_IDS = {726414082915172403}  # ここに管理者のユーザーIDを追加
+
 # インテントの設定
 intents = discord.Intents.default()
 intents.messages = True
@@ -20,7 +23,7 @@ intents.guilds = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ポイントとアイテムを保存する辞書
+# ポイントとデータを保存する辞書
 user_points = defaultdict(int)
 last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン日を保存する辞書
 login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
@@ -74,31 +77,33 @@ async def on_message(message):
     today = datetime.datetime.utcnow().date()
 
     # メッセージを投稿するごとにポイントを20追加
-    user_points[user_id] += 20
-    weekly_message_count[user_id] += 1
-    save_data()  # データの保存
+    if user_id not in ADMIN_USER_IDS:
+        user_points[user_id] += 20
+        weekly_message_count[user_id] += 1
+        save_data()  # データの保存
 
     # 日付が変わっていたらログインボーナスを付与
     last_login = last_login_date[user_id]
     if last_login is None or last_login != today:
-        user_points[user_id] += 100
-        if last_login is None or (today - last_login).days > 1:
-            login_streaks[user_id] = 1
-        else:
-            login_streaks[user_id] += 1
-
-        streak_days = login_streaks[user_id]
-        if streak_days == 3:
+        if user_id not in ADMIN_USER_IDS:
             user_points[user_id] += 100
-        elif streak_days == 5:
-            user_points[user_id] += 200
-        elif streak_days == 10:
-            user_points[user_id] += 400
-            login_streaks[user_id] = 0
+            if last_login is None or (today - last_login).days > 1:
+                login_streaks[user_id] = 1
+            else:
+                login_streaks[user_id] += 1
 
-        last_login_date[user_id] = today
-        await message.author.send(f'ログインボーナスとして 100 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
-        save_data()  # データの保存
+            streak_days = login_streaks[user_id]
+            if streak_days == 3:
+                user_points[user_id] += 100
+            elif streak_days == 5:
+                user_points[user_id] += 200
+            elif streak_days == 10:
+                user_points[user_id] += 400
+                login_streaks[user_id] = 0
+
+            last_login_date[user_id] = today
+            await message.author.send(f'ログインボーナスとして 100 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
+            save_data()  # データの保存
 
     # 通常のメッセージ処理
     await bot.process_commands(message)
@@ -118,14 +123,17 @@ async def points(interaction: discord.Interaction, member: discord.Member = None
 @bot.tree.command(name="ポイント付与", description="他のメンバーにポイントをプレゼントします")
 @app_commands.describe(member="ポイントを付与するメンバー", points="付与するポイント数")
 async def give_points(interaction: discord.Interaction, member: discord.Member, points: int):
-    user_points[member.id] += points
-    save_data()  # データの保存
-    await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
+    if interaction.user.id in ADMIN_USER_IDS:
+        user_points[member.id] += points
+        save_data()  # データの保存
+        await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
+    else:
+        await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-@bot.tree.command(name="ランキング", description="所持ポイントと1週間メッセージ送信数のランキングを表示します")
+@bot.tree.command(name="ランキング", description="所持ポイント数と1週間メッセージ送信数のランキングを表示します")
 async def ranking(interaction: discord.Interaction):
-    rankings = sorted(user_points.items(), key=lambda x: x[1], reverse=True)[:5]
-    message_counts = sorted(weekly_message_count.items(), key=lambda x: x[1], reverse=True)[:5]
+    rankings = sorted([(user_id, points) for user_id, points in user_points.items() if user_id not in ADMIN_USER_IDS], key=lambda x: x[1], reverse=True)[:5]
+    message_counts = sorted([(user_id, count) for user_id, count in weekly_message_count.items() if user_id not in ADMIN_USER_IDS], key=lambda x: x[1], reverse=True)[:5]
     response = "**ポイントランキング**\n"
     for i, (user_id, points) in enumerate(rankings):
         user = await bot.fetch_user(user_id)
@@ -136,14 +144,14 @@ async def ranking(interaction: discord.Interaction):
         response += f'{i+1}. {user.name}: {count} メッセージ\n'
     await interaction.response.send_message(response, ephemeral=True)
 
-@bot.tree.command(name="コマンド-説明", description="使用できるコマンド一覧とポイントの説明を表示します")
+@bot.tree.command(name="コマンド_説明", description="使用できるコマンド一覧とポイントの説明を表示します")
 async def show_commands_description(interaction: discord.Interaction):
     commands_list = """
     **使用可能なコマンド一覧**
     /ポイント - 現在のポイントを表示 🪙
     /ポイント付与 - 他のメンバーにポイントをプレゼント 🪙
-    /ランキング - トップ5のポイントとメッセージ数のランキングを表示 👑
-    /コマンド-説明 - 使用できるコマンド一覧とポイントの説明を表示
+    /ランキング - ポイントとメッセージ数のランキングを表示 👑
+    /コマンド_説明 - 使用できるコマンド一覧とポイントの説明を表示
     /ショップ - 商品交換リンクを表示 🛒
 
     **ポイントの説明**
@@ -161,15 +169,15 @@ async def shop(interaction: discord.Interaction):
     await interaction.response.send_message(response, ephemeral=True)
 
 # 管理者向けのポイントマイナス機能
-async def subtract_points(ctx, member: discord.Member, points: int):
-    if ctx.author.guild_permissions.administrator:
+@bot.tree.command(name="ポイント減算", description="他のメンバーのポイントを減算します")
+@app_commands.describe(member="ポイントを減算するメンバー", points="減算するポイント数")
+async def subtract_points(interaction: discord.Interaction, member: discord.Member, points: int):
+    if interaction.user.id in ADMIN_USER_IDS:
         user_points[member.id] -= points
         save_data()  # データの保存
-        await member.send(f'{ctx.author.name}が{points}ポイントを引きました。')
-        await ctx.send(f'{member.mention}のポイントが{points}減りました。', ephemeral=True)
+        await member.send(f'{interaction.user.name}が{points}ポイントを引きました。')
+        await interaction.response.send_message(f'{member.mention}のポイントが{points}減りました。', ephemeral=True)
     else:
-        await ctx.send('このコマンドを実行する権限がありません。', ephemeral=True)
-
-bot.tree.command(name="ポイント減算", description="他のメンバーのポイントを減算します")(subtract_points)
+        await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
 bot.run(DISCORD_BOT_TOKEN)
