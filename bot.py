@@ -6,6 +6,7 @@ import datetime
 import json
 import os
 import logging
+import asyncio
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # 環境変数からトークンを取得
@@ -232,9 +233,6 @@ class Handler(BaseHTTPRequestHandler):
 
 httpd = HTTPServer(('0.0.0.0', 8000), Handler)
 
-# ボットのステータスをチェックするタスクを開始
-check_bot_status.start()
-
 # ボットを非同期で実行
 async def run_bot():
     await bot.start(DISCORD_BOT_TOKEN)
@@ -243,6 +241,12 @@ async def run_httpd():
     httpd.serve_forever()
 
 async def main():
+    # タスクの開始
+    check_bot_status.start()
     await asyncio.gather(run_bot(), run_httpd())
 
-asyncio.run(main())
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        logging.error(f'Error running bot: {e}', exc_info=True)
