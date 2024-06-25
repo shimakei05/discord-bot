@@ -1,13 +1,16 @@
 import discord
 from discord import app_commands
-from discord.ext import commands, tasks
+from discord.ext import commands
 from collections import defaultdict
 import datetime
 import json
 import os
+
+# ここに追加開始
 import logging
-import asyncio
-from http.server import BaseHTTPRequestHandler, HTTPServer
+
+logging.basicConfig(level=logging.INFO)
+# ここに追加終了
 
 # 環境変数からトークンを取得
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -28,7 +31,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ポイントとデータを保存する辞書
 user_points = defaultdict(int)
-user_items = defaultdict(dict)  # ユーザーアイテムを保存する辞書
 last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン日を保存する辞書
 login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
 weekly_message_count = defaultdict(int)  # 1週間のメッセージ数を保存する辞書
@@ -37,32 +39,31 @@ def save_data():
     """ポイントとデータを保存"""
     data = {
         "user_points": dict(user_points),
-        "user_items": dict(user_items),
         "last_login_date": {str(k): str(v) for k, v in last_login_date.items()},
         "login_streaks": dict(login_streaks),
         "weekly_message_count": dict(weekly_message_count)
     }
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
-    logging.info("データが保存されました: %s", data)
+    print("データが保存されました: ", data)
 
 def load_data():
     """ポイントとデータを読み込む"""
-    global user_points, user_items, last_login_date, login_streaks, weekly_message_count
+    global user_points, last_login_date, login_streaks, weekly_message_count
     try:
         with open(DATA_FILE, "r") as f:
             data = json.load(f)
             user_points.update(data.get("user_points", {}))
-            user_items.update(data.get("user_items", {}))
             last_login_date.update({int(k): datetime.datetime.fromisoformat(v).date() for k, v in data.get("last_login_date", {}).items()})
             login_streaks.update(data.get("login_streaks", {}))
             weekly_message_count.update(data.get("weekly_message_count", {}))
-        logging.info("データが読み込まれました: %s", data)
+        print("データが読み込まれました: ", data)
     except FileNotFoundError:
-        logging.info("データファイルが見つかりません。新しいファイルを作成します。")
+        print("データファイルが見つかりません。新しいファイルを作成します。")
     except json.JSONDecodeError:
-        logging.error("データファイルの読み込みに失敗しました。JSON形式に問題があります。")
+        print("データファイルの読み込みに失敗しました。JSON形式に問題があります。")
 
+# ここに追加開始
 @bot.event
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
@@ -81,6 +82,7 @@ async def on_disconnect():
 @bot.event
 async def on_resumed():
     logging.info('Bot has resumed connection')
+# ここに追加終了
 
 @bot.event
 async def on_message(message):
@@ -173,7 +175,7 @@ async def show_commands_description(interaction: discord.Interaction):
     また連続3日メッセージを送ったら100ポイント、5日で200ポイント、10日で400ポイントの連続ログインボーナスをプレゼント🪙
     「/」をつけてコマンドを送ると、ワレカラくんがあなただけに見えるメッセージを送ります📩
     「良いこと言ってるな！」と思ったゼミ生にはポイントをプレゼントしてみましょう🎁
-    「/ショップ」でポイントを交換できます。
+    「/ショップ」でポイントを交換できます🛒
     """
     await interaction.response.send_message(commands_list, ephemeral=True)
 
@@ -194,23 +196,19 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-async def run_bot():
-    async with bot:
-        bot.loop.create_task(httpd.serve_forever())
-        await bot.start(DISCORD_BOT_TOKEN)
-
-class RequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"Hello, world!")
-
-    def log_message(self, format, *args):
-        return
-
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    server_address = ("", 8000)
-    httpd = HTTPServer(server_address, RequestHandler)
-    asyncio.run(run_bot())
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import threading
+
+    class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Server is running")
+
+    def run_server():
+        server = HTTPServer(('0.0.0.0', 8000), SimpleHTTPRequestHandler)
+        server.serve_forever()
+
+    threading.Thread(target=run_server).start()
+    bot.run(DISCORD_BOT_TOKEN)
