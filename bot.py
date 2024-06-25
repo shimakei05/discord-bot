@@ -5,6 +5,7 @@ from collections import defaultdict
 import datetime
 import json
 import os
+import asyncio
 
 # 環境変数からトークンを取得
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -13,7 +14,7 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DATA_FILE = "user_data.json"
 
 # 管理者のユーザーID
-ADMIN_USER_IDS = {726414082915172403}  # ここに管理者のユーザーIDを追加
+ADMIN_USER_IDS = {726414082915172403}
 
 # インテントの設定
 intents = discord.Intents.default()
@@ -180,5 +181,20 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
         await interaction.response.send_message(f'{member.mention}のポイントが{points}減りました。', ephemeral=True)
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
+
+# ダミーのHTTPサーバーを追加してポートをバインド
+async def run_dummy_server():
+    from aiohttp import web
+    app = web.Application()
+    async def handle(request):
+        return web.Response(text="Hello, world")
+    app.add_routes([web.get('/', handle)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 8000)  # ポート8000をバインド
+    await site.start()
+
+loop = asyncio.get_event_loop()
+loop.create_task(run_dummy_server())
 
 bot.run(DISCORD_BOT_TOKEN)
