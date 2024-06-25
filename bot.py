@@ -1,16 +1,11 @@
 import discord
-from discord import app_commands
-from discord.ext import commands
+from discord.ext import tasks, commands
 from collections import defaultdict
 import datetime
 import json
 import os
-
-# ここに追加開始
 import logging
-
-logging.basicConfig(level=logging.INFO)
-# ここに追加終了
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # 環境変数からトークンを取得
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -63,7 +58,8 @@ def load_data():
     except json.JSONDecodeError:
         print("データファイルの読み込みに失敗しました。JSON形式に問題があります。")
 
-# ここに追加開始
+logging.basicConfig(level=logging.INFO)
+
 @bot.event
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
@@ -74,6 +70,7 @@ async def on_ready():
         logging.error(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
     logging.info(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
+    check_bot_status.start()  # ステータスチェックを開始
 
 @bot.event
 async def on_disconnect():
@@ -82,7 +79,12 @@ async def on_disconnect():
 @bot.event
 async def on_resumed():
     logging.info('Bot has resumed connection')
-# ここに追加終了
+
+@tasks.loop(minutes=1)
+async def check_bot_status():
+    if bot.is_closed():
+        logging.warning("Bot is offline. Attempting to restart...")
+        await bot.start(DISCORD_BOT_TOKEN)
 
 @bot.event
 async def on_message(message):
@@ -197,19 +199,23 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-if __name__ == "__main__":
-    from http.server import HTTPServer, BaseHTTPRequestHandler
-    import threading
+# ダミーのHTTPサーバーを起動してポート8000にバインド
+class DummyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"Hello, World!")
 
-    class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"Server is running")
+def run(server_class=HTTPServer, handler_class=DummyHandler, port=8000):
+    server_address = ('', port)
+    httpd = server_class(server_address, handler_class)
+    logging.info(f'Starting httpd server on port {port}')
+    httpd.serve_forever()
 
-    def run_server():
-        server = HTTPServer(('0.0.0.0', 8000), SimpleHTTPRequestHandler)
-        server.serve_forever()
+import threading
+server_thread = threading.Thread(target=run)
+server_thread.daemon = True
+server_thread.start()
 
-    threading.Thread(target=run_server).start()
-    bot.run(DISCORD_BOT_TOKEN)
+bot.run(DISCORD_BOT_TOKEN)
