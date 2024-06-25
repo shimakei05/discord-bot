@@ -5,8 +5,12 @@ from collections import defaultdict
 import datetime
 import json
 import os
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# ここに追加開始
+import logging
+
+logging.basicConfig(level=logging.INFO)
+# ここに追加終了
 
 # 環境変数からトークンを取得
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -15,7 +19,7 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DATA_FILE = "user_data.json"
 
 # 管理者のユーザーID
-ADMIN_USER_IDS = {726414082915172403, 123456789012345678}  # ここに管理者のユーザーIDを追加
+ADMIN_USER_IDS = {726414082915172403}  # ここに管理者のユーザーIDを追加
 
 # インテントの設定
 intents = discord.Intents.default()
@@ -59,16 +63,26 @@ def load_data():
     except json.JSONDecodeError:
         print("データファイルの読み込みに失敗しました。JSON形式に問題があります。")
 
+# ここに追加開始
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user}')
+    logging.info(f'Logged in as {bot.user}')
     try:
         synced = await bot.tree.sync()
-        print(f'Synced {len(synced)} command(s)')
+        logging.info(f'Synced {len(synced)} command(s)')
     except Exception as e:
-        print(f'Failed to sync commands: {e}')
+        logging.error(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
-    print(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
+    logging.info(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
+
+@bot.event
+async def on_disconnect():
+    logging.warning('Bot has been disconnected')
+
+@bot.event
+async def on_resumed():
+    logging.info('Bot has resumed connection')
+# ここに追加終了
 
 @bot.event
 async def on_message(message):
@@ -183,19 +197,19 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-# ダミーのHTTPサーバー
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Healthy")
+if __name__ == "__main__":
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import threading
 
-def run_http_server():
-    server_address = ("", 8000)
-    httpd = HTTPServer(server_address, HealthCheckHandler)
-    httpd.serve_forever()
+    class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Server is running")
 
-# HTTPサーバーを別スレッドで起動
-threading.Thread(target=run_http_server, daemon=True).start()
+    def run_server():
+        server = HTTPServer(('0.0.0.0', 8000), SimpleHTTPRequestHandler)
+        server.serve_forever()
 
-bot.run(DISCORD_BOT_TOKEN)
+    threading.Thread(target=run_server).start()
+    bot.run(DISCORD_BOT_TOKEN)
