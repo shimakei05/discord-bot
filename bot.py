@@ -1,5 +1,6 @@
 import discord
-from discord.ext import tasks, commands
+from discord import app_commands
+from discord.ext import commands, tasks
 from collections import defaultdict
 import datetime
 import json
@@ -200,22 +201,13 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
 # ダミーのHTTPサーバーを起動してポート8000にバインド
-class DummyHandler(BaseHTTPRequestHandler):
+class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write(b"Hello, World!")
+        self.wfile.write(b'Hello, world!')
 
-def run(server_class=HTTPServer, handler_class=DummyHandler, port=8000):
-    server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
-    logging.info(f'Starting httpd server on port {port}')
-    httpd.serve_forever()
-
-import threading
-server_thread = threading.Thread(target=run)
-server_thread.daemon = True
-server_thread.start()
+httpd = HTTPServer(('0.0.0.0', 8000), Handler)
+httpd.serve_forever()
 
 bot.run(DISCORD_BOT_TOKEN)
