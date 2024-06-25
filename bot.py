@@ -5,7 +5,8 @@ from collections import defaultdict
 import datetime
 import json
 import os
-import asyncio
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # 環境変数からトークンを取得
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -14,7 +15,7 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DATA_FILE = "user_data.json"
 
 # 管理者のユーザーID
-ADMIN_USER_IDS = {726414082915172403}
+ADMIN_USER_IDS = {726414082915172403, 123456789012345678}  # ここに管理者のユーザーIDを追加
 
 # インテントの設定
 intents = discord.Intents.default()
@@ -182,19 +183,19 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-# ダミーのHTTPサーバーを追加してポートをバインド
-async def run_dummy_server():
-    from aiohttp import web
-    app = web.Application()
-    async def handle(request):
-        return web.Response(text="Hello, world")
-    app.add_routes([web.get('/', handle)])
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 8000)  # ポート8000をバインド
-    await site.start()
+# ダミーのHTTPサーバー
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Healthy")
 
-loop = asyncio.get_event_loop()
-loop.create_task(run_dummy_server())
+def run_http_server():
+    server_address = ("", 8000)
+    httpd = HTTPServer(server_address, HealthCheckHandler)
+    httpd.serve_forever()
+
+# HTTPサーバーを別スレッドで起動
+threading.Thread(target=run_http_server, daemon=True).start()
 
 bot.run(DISCORD_BOT_TOKEN)
