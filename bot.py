@@ -6,6 +6,7 @@ import datetime
 import json
 import os
 import logging
+import asyncio
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # 環境変数からトークンを取得
@@ -164,8 +165,7 @@ async def show_commands_description(interaction: discord.Interaction):
     また連続3日メッセージを送ったら100ポイント、5日で200ポイント、10日で400ポイントの連続ログインボーナスをプレゼント🪙
     「/」をつけてコマンドを送ると、ワレカラくんがあなただけに見えるメッセージを送ります📩
     「良いこと言ってるな！」と思ったゼミ生にはポイントをプレゼントしてみましょう🎁
-    「/ショップ」で、ポイントを交換できます。色々交換できるものも増やしていきたいと思っています。
-    「私ができること（占い、セラピー、イラストなどなど…）も交換する内容に加えたい！」という方がいらっしゃったらザッキーにご一報ください！
+    「/ショップ」で、ポイントを交換できます。
     """
     await interaction.response.send_message(commands_list, ephemeral=True)
 
@@ -190,8 +190,6 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
 async def check_bot_status():
     logging.info("Bot is running and checking status...")
 
-check_bot_status.start()
-
 # ダミーのHTTPサーバーを起動し、ポート8000にバインドする
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -202,6 +200,10 @@ class Handler(BaseHTTPRequestHandler):
 
 httpd = HTTPServer(("0.0.0.0", 8000), Handler)
 
-if __name__ == "__main__":
+def run_bot():
     bot.loop.create_task(httpd.serve_forever())
+    check_bot_status.start()
     bot.run(DISCORD_BOT_TOKEN)
+
+if __name__ == "__main__":
+    asyncio.run(run_bot())
