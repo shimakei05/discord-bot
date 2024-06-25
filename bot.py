@@ -6,11 +6,7 @@ import datetime
 import json
 import os
 import logging
-import aiohttp
-import asyncio
-
-# ロギングの設定
-logging.basicConfig(level=logging.INFO)
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # 環境変数からトークンを取得
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -34,6 +30,9 @@ user_points = defaultdict(int)
 last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン日を保存する辞書
 login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
 weekly_message_count = defaultdict(int)  # 1週間のメッセージ数を保存する辞書
+
+# ログの設定
+logging.basicConfig(level=logging.INFO)
 
 def save_data():
     """ポイントとデータを保存"""
@@ -73,14 +72,6 @@ async def on_ready():
         logging.error(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
     logging.info(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
-
-@bot.event
-async def on_disconnect():
-    logging.warning('Bot has been disconnected')
-
-@bot.event
-async def on_resumed():
-    logging.info('Bot has resumed connection')
 
 @bot.event
 async def on_message(message):
@@ -195,14 +186,22 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-@tasks.loop(seconds=60)  # 60秒ごとに実行
+@tasks.loop(minutes=5)
 async def check_bot_status():
     logging.info("Bot is running and checking status...")
 
-async def main():
-    async with bot:
-        check_bot_status.start()
-        await bot.start(DISCORD_BOT_TOKEN)
+check_bot_status.start()
+
+# ダミーのHTTPサーバーを起動し、ポート8000にバインドする
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"Hello, this is a dummy server to keep the bot running.")
+
+httpd = HTTPServer(("0.0.0.0", 8000), Handler)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    bot.loop.create_task(httpd.serve_forever())
+    bot.run(DISCORD_BOT_TOKEN)
