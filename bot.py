@@ -5,12 +5,9 @@ from collections import defaultdict
 import datetime
 import json
 import os
-
-# ここに追加開始
 import logging
 
 logging.basicConfig(level=logging.INFO)
-# ここに追加終了
 
 # 環境変数からトークンを取得
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -26,6 +23,7 @@ intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True  # メッセージ内容のインテントを有効にする
 intents.guilds = True
+intents.reactions = True  # リアクションのインテントを有効にする
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -45,7 +43,7 @@ def save_data():
     }
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
-    print("データが保存されました: ", data)
+    logging.info("データが保存されました: %s", data)
 
 def load_data():
     """ポイントとデータを読み込む"""
@@ -57,13 +55,12 @@ def load_data():
             last_login_date.update({int(k): datetime.datetime.fromisoformat(v).date() for k, v in data.get("last_login_date", {}).items()})
             login_streaks.update(data.get("login_streaks", {}))
             weekly_message_count.update(data.get("weekly_message_count", {}))
-        print("データが読み込まれました: ", data)
+        logging.info("データが読み込まれました: %s", data)
     except FileNotFoundError:
-        print("データファイルが見つかりません。新しいファイルを作成します。")
+        logging.info("データファイルが見つかりません。新しいファイルを作成します。")
     except json.JSONDecodeError:
-        print("データファイルの読み込みに失敗しました。JSON形式に問題があります。")
+        logging.error("データファイルの読み込みに失敗しました。JSON形式に問題があります。")
 
-# ここに追加開始
 @bot.event
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
@@ -82,7 +79,6 @@ async def on_disconnect():
 @bot.event
 async def on_resumed():
     logging.info('Bot has resumed connection')
-# ここに追加終了
 
 @bot.event
 async def on_message(message):
@@ -110,11 +106,11 @@ async def on_message(message):
 
             streak_days = login_streaks[user_id]
             if streak_days == 3:
-                user_points[user_id] += 100
+                user_points[user_id] += 50
             elif streak_days == 5:
-                user_points[user_id] += 200
+                user_points[user_id] += 100
             elif streak_days == 10:
-                user_points[user_id] += 400
+                user_points[user_id] += 200
                 login_streaks[user_id] = 0
 
             last_login_date[user_id] = today
@@ -123,6 +119,15 @@ async def on_message(message):
 
     # 通常のメッセージ処理
     await bot.process_commands(message)
+
+@bot.event
+async def on_reaction_add(reaction, user):
+    if user == bot.user:
+        return
+
+    if user.id not in ADMIN_USER_IDS:
+        user_points[user.id] += 5
+        save_data()  # データの保存
 
 @bot.tree.command(name="ポイント", description="現在のポイントを表示します")
 @app_commands.describe(member="ポイントを確認するメンバー")
@@ -148,16 +153,25 @@ async def give_points(interaction: discord.Interaction, member: discord.Member, 
 
 @bot.tree.command(name="ランキング", description="所持ポイント数と1週間メッセージ送信数のランキングを表示します")
 async def ranking(interaction: discord.Interaction):
+    guild = interaction.guild  # サーバー（ギルド）情報を取得
     rankings = sorted([(user_id, points) for user_id, points in user_points.items() if user_id not in ADMIN_USER_IDS], key=lambda x: x[1], reverse=True)[:5]
     message_counts = sorted([(user_id, count) for user_id, count in weekly_message_count.items() if user_id not in ADMIN_USER_IDS], key=lambda x: x[1], reverse=True)[:5]
     response = "**ポイントランキング**\n"
     for i, (user_id, points) in enumerate(rankings):
-        user = await bot.fetch_user(user_id)
-        response += f'{i+1}. {user.name}: {points} 🪙\n'
+        member = guild.get_member(user_id)
+        if member:
+            display_name = member.display_name
+        else:
+            display_name = "Unknown User"
+        response += f'{i+1}. {display_name}: {points} 🪙\n'
     response += "\n**メッセージ数ランキング**\n"
     for i, (user_id, count) in enumerate(message_counts):
-        user = await bot.fetch_user(user_id)
-        response += f'{i+1}. {user.name}: {count} メッセージ\n'
+        member = guild.get_member(user_id)
+        if member:
+            display_name = member.display_name
+        else:
+            display_name = "Unknown User"
+        response += f'{i+1}. {display_name}: {count} メッセージ\n'
     await interaction.response.send_message(response, ephemeral=True)
 
 @bot.tree.command(name="コマンド_説明", description="使用できるコマンド一覧とポイントの説明を表示します")
@@ -171,11 +185,11 @@ async def show_commands_description(interaction: discord.Interaction):
     /ショップ - 商品交換リンクを表示 🛒
 
     **ポイントの説明**
-    その日初めてメッセージを送った時に100ポイント、1メッセージ送るごとに20ポイントをワレカラくんから貰えます。
-    また連続3日メッセージを送ったら100ポイント、5日で200ポイント、10日で400ポイントの連続ログインボーナスをプレゼント🪙
-    「/」をつけてコマンドを送ると、ワレカラくんがあなただけに見えるメッセージを送ります📩
-    「良いこと言ってるな！」と思ったゼミ生にはポイントをプレゼントしてみましょう🎁
-    「/ショップ」でポイントを交換できます🛒
+    その日初めてメッセージを送った時に100ポイント、1メッセージ送るごとに20ポイント、誰かにリアクション（絵文字のスタンプ）するごとに5ポイントをワレカラくんから貰えます🪙
+    さらに、連続3日メッセージを送ったら50ポイント、5日で100ポイント、10日で200ポイントの連続ボーナスを追加でプレゼント🎁
+    貯まったポイントは「/ショップ」で商品と交換できます🛒
+    「良いこと言ってるな！」と思ったゼミ生には「/ポイント付与」でポイントをプレゼントしちゃいましょう🎁 
+    「/」をつけてコマンドを送ると、ワレカラくんがあなただけに見えるメッセージを送ります📩（ポイント付与は他のメンバーにも見えます）
     """
     await interaction.response.send_message(commands_list, ephemeral=True)
 
