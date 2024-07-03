@@ -173,7 +173,7 @@ async def ranking(interaction: discord.Interaction):
         else:
             try:
                 user = await bot.fetch_user(user_id)
-                display_name = user.display_name
+                display_name = user.name  # display_nameではなくnameを使用する
             except:
                 display_name = "Unknown User"
         response += f'{i+1}. {display_name}: {points} 🪙\n'
@@ -185,7 +185,7 @@ async def ranking(interaction: discord.Interaction):
         else:
             try:
                 user = await bot.fetch_user(user_id)
-                display_name = user.display_name
+                display_name = user.name  # display_nameではなくnameを使用する
             except:
                 display_name = "Unknown User"
         response += f'{i+1}. {display_name}: {count} メッセージ\n'
@@ -206,9 +206,10 @@ async def show_commands_description(interaction: discord.Interaction):
     その日初めてメッセージを送った時、もしくはその日初めて誰かにリアクション（絵文字のスタンプ）した時に50ポイント、1メッセージ送るごとに30ポイント、誰かにリアクションするごとに5ポイントをワレカラくんから貰えます🪙
     さらに、連続3日ログイン（メッセージorリアクション）したら50ポイント、5日で100ポイント、10日で200ポイントの連続ボーナスを追加でプレゼント🎁
     貯まったポイントは「/ショップ」で商品と交換できます🛒
-    「良いこと言ってるな！」と思ったゼミ生には「/ポイント付与」でポイントをプレゼントしちゃいましょう🎁 
-   
+    「良いこと言ってるな！」と思ったゼミ生には「/ポイント付与」でポイントをプレゼントしちゃいましょう🎁
     """
+
+    
     await interaction.response.send_message(commands_list, ephemeral=True)
 
 @bot.tree.command(name="ショップ", description="商品交換リンクを表示します")
