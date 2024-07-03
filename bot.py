@@ -88,9 +88,9 @@ async def on_message(message):
     user_id = message.author.id
     today = datetime.datetime.utcnow().date()
 
-    # メッセージを投稿するごとにポイントを20追加
+    # メッセージを投稿するごとにポイントを30追加
     if user_id not in ADMIN_USER_IDS:
-        user_points[user_id] += 20
+        user_points[user_id] += 30
         weekly_message_count[user_id] += 1
         save_data()  # データの保存
 
@@ -98,7 +98,7 @@ async def on_message(message):
     last_login = last_login_date[user_id]
     if last_login is None or last_login != today:
         if user_id not in ADMIN_USER_IDS:
-            user_points[user_id] += 100
+            user_points[user_id] += 50
             if last_login is None or (today - last_login).days > 1:
                 login_streaks[user_id] = 1
             else:
@@ -114,7 +114,7 @@ async def on_message(message):
                 login_streaks[user_id] = 0
 
             last_login_date[user_id] = today
-            await message.author.send(f'ログインボーナスとして 100 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
+            await message.author.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
             save_data()  # データの保存
 
     # 通常のメッセージ処理
@@ -125,9 +125,36 @@ async def on_reaction_add(reaction, user):
     if user == bot.user:
         return
 
-    if user.id not in ADMIN_USER_IDS:
-        user_points[user.id] += 5
+    user_id = user.id
+    today = datetime.datetime.utcnow().date()
+
+    # リアクションするごとにポイントを5追加
+    if user_id not in ADMIN_USER_IDS:
+        user_points[user_id] += 5
         save_data()  # データの保存
+
+    # 日付が変わっていたらログインボーナスを付与
+    last_login = last_login_date[user_id]
+    if last_login is None or last_login != today:
+        if user_id not in ADMIN_USER_IDS:
+            user_points[user_id] += 50
+            if last_login is None or (today - last_login).days > 1:
+                login_streaks[user_id] = 1
+            else:
+                login_streaks[user_id] += 1
+
+            streak_days = login_streaks[user_id]
+            if streak_days == 3:
+                user_points[user_id] += 50
+            elif streak_days == 5:
+                user_points[user_id] += 100
+            elif streak_days == 10:
+                user_points[user_id] += 200
+                login_streaks[user_id] = 0
+
+            last_login_date[user_id] = today
+            await user.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
+            save_data()  # データの保存
 
 @bot.tree.command(name="ポイント", description="現在のポイントを表示します")
 @app_commands.describe(member="ポイントを確認するメンバー")
@@ -185,8 +212,8 @@ async def show_commands_description(interaction: discord.Interaction):
     /ショップ - 商品交換リンクを表示 🛒
 
     **ポイントの説明**
-    その日初めてメッセージを送った時に100ポイント、1メッセージ送るごとに20ポイント、誰かにリアクション（絵文字のスタンプ）するごとに5ポイントをワレカラくんから貰えます🪙
-    さらに、連続3日メッセージを送ったら50ポイント、5日で100ポイント、10日で200ポイントの連続ボーナスを追加でプレゼント🎁
+    その日初めてメッセージを送った時、もしくはその日初めて誰かにリアクション（絵文字のスタンプ）した時に50ポイント、1メッセージ送るごとに30ポイント、誰かにリアクションするごとに5ポイントをワレカラくんから貰えます🪙
+    さらに、連続3日ログイン（メッセージorリアクション）したら50ポイント、5日で100ポイント、10日で200ポイントの連続ボーナスを追加でプレゼント🎁
     貯まったポイントは「/ショップ」で商品と交換できます🛒
     「良いこと言ってるな！」と思ったゼミ生には「/ポイント付与」でポイントをプレゼントしちゃいましょう🎁 
     「/」をつけてコマンドを送ると、ワレカラくんがあなただけに見えるメッセージを送ります📩（ポイント付与は他のメンバーにも見えます）
