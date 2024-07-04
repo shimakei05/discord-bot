@@ -31,7 +31,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 user_points = defaultdict(int)
 last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン日を保存する辞書
 login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
-monthly_message_count = defaultdict(int)  # 1ヶ月のメッセージ数を保存する辞書
+monthly_message_count = defaultdict(int)  # 1か月のメッセージ数を保存する辞書
+last_checked_month = None
 
 def save_data():
     """ポイントとデータを保存"""
@@ -47,7 +48,7 @@ def save_data():
 
 def load_data():
     """ポイントとデータを読み込む"""
-    global user_points, last_login_date, login_streaks, monthly_message_count
+    global user_points, last_login_date, login_streaks, monthly_message_count, last_checked_month
     try:
         with open(DATA_FILE, "r") as f:
             data = json.load(f)
@@ -55,11 +56,20 @@ def load_data():
             last_login_date.update({int(k): datetime.datetime.fromisoformat(v).date() for k, v in data.get("last_login_date", {}).items()})
             login_streaks.update(data.get("login_streaks", {}))
             monthly_message_count.update(data.get("monthly_message_count", {}))
+            last_checked_month = datetime.datetime.utcnow().month
         logging.info("データが読み込まれました: %s", data)
     except FileNotFoundError:
         logging.info("データファイルが見つかりません。新しいファイルを作成します。")
     except json.JSONDecodeError:
         logging.error("データファイルの読み込みに失敗しました。JSON形式に問題があります。")
+
+def check_and_reset_monthly_counts():
+    global last_checked_month
+    current_month = datetime.datetime.utcnow().month
+    if last_checked_month is None or current_month != last_checked_month:
+        monthly_message_count.clear()
+        last_checked_month = current_month
+        logging.info("メッセージ数がリセットされました。")
 
 @bot.event
 async def on_ready():
@@ -71,6 +81,7 @@ async def on_ready():
         logging.error(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
     logging.info(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
+    check_and_reset_monthly_counts()  # メッセージ数リセットの確認
 
 @bot.event
 async def on_disconnect():
@@ -79,6 +90,7 @@ async def on_disconnect():
 @bot.event
 async def on_resumed():
     logging.info('Bot has resumed connection')
+    check_and_reset_monthly_counts()  # メッセージ数リセットの確認
 
 def check_and_give_login_bonus(user_id, today):
     last_login = last_login_date[user_id]
@@ -111,13 +123,13 @@ async def on_message(message):
     today = datetime.datetime.utcnow().date()
 
     # メッセージを投稿するごとにポイントを30追加
-    user_points[user_id] += 30
-    monthly_message_count[user_id] += 1
-    save_data()  # データの保存
-
+    if user_id not in ADMIN_USER_IDS:
+        user_points[user_id] += 30
+        monthly_message_count[user_id] += 1
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await message.author.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
+    save_data()  # データの保存
 
     # 通常のメッセージ処理
     await bot.process_commands(message)
@@ -131,12 +143,12 @@ async def on_reaction_add(reaction, user):
     today = datetime.datetime.utcnow().date()
 
     # リアクションするごとにポイントを5追加
-    user_points[user_id] += 5
-    save_data()  # データの保存
-
+    if user_id not in ADMIN_USER_IDS:
+        user_points[user_id] += 5
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await user.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
+    save_data()  # データの保存
 
 @bot.tree.command(name="ポイント", description="現在のポイントを表示します")
 @app_commands.describe(member="ポイントを確認するメンバー")
