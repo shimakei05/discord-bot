@@ -14,6 +14,8 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 
 # データファイルのパス
 DATA_FILE = "user_data.json"
+# 最終リセット日を保存するファイルのパス
+RESET_FILE = "last_reset_date.json"
 
 # 管理者のユーザーID
 ADMIN_USER_IDS = {726414082915172403}  # ここに管理者のユーザーIDを追加
@@ -61,6 +63,33 @@ def load_data():
     except json.JSONDecodeError:
         logging.error("データファイルの読み込みに失敗しました。JSON形式に問題があります。")
 
+def save_reset_date():
+    """最終リセット日を保存"""
+    with open(RESET_FILE, "w") as f:
+        json.dump({"last_reset_date": str(datetime.datetime.utcnow().date())}, f)
+    logging.info("最終リセット日が保存されました")
+
+def load_reset_date():
+    """最終リセット日を読み込み"""
+    try:
+        with open(RESET_FILE, "r") as f:
+            data = json.load(f)
+            return datetime.datetime.fromisoformat(data.get("last_reset_date")).date()
+    except FileNotFoundError:
+        logging.info("リセット日ファイルが見つかりません。新しいファイルを作成します。")
+        return None
+    except json.JSONDecodeError:
+        logging.error("リセット日ファイルの読み込みに失敗しました。JSON形式に問題があります。")
+        return None
+
+def reset_monthly_message_count():
+    """月が変わったときにメッセージカウントをリセット"""
+    global monthly_message_count
+    monthly_message_count = defaultdict(int)
+    save_data()
+    save_reset_date()
+    logging.info("メッセージ数がリセットされました。")
+
 @bot.event
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
@@ -71,6 +100,10 @@ async def on_ready():
         logging.error(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
     logging.info(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
+    last_reset_date = load_reset_date()
+    today = datetime.datetime.utcnow().date()
+    if last_reset_date is None or today.month != last_reset_date.month:
+        reset_monthly_message_count()
 
 @bot.event
 async def on_disconnect():
