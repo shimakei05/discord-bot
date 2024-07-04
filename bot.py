@@ -111,10 +111,9 @@ async def on_message(message):
     today = datetime.datetime.utcnow().date()
 
     # メッセージを投稿するごとにポイントを30追加
-    if user_id not in ADMIN_USER_IDS:
-        user_points[user_id] += 30
-        monthly_message_count[user_id] += 1
-        save_data()  # データの保存
+    user_points[user_id] += 30
+    monthly_message_count[user_id] += 1
+    save_data()  # データの保存
 
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
@@ -132,9 +131,8 @@ async def on_reaction_add(reaction, user):
     today = datetime.datetime.utcnow().date()
 
     # リアクションするごとにポイントを5追加
-    if user_id not in ADMIN_USER_IDS:
-        user_points[user_id] += 5
-        save_data()  # データの保存
+    user_points[user_id] += 5
+    save_data()  # データの保存
 
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
