@@ -114,10 +114,11 @@ async def on_message(message):
     if user_id not in ADMIN_USER_IDS:
         user_points[user_id] += 30
         monthly_message_count[user_id] += 1
+        save_data()  # データの保存
+
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await message.author.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
-    save_data()  # データの保存
 
     # 通常のメッセージ処理
     await bot.process_commands(message)
@@ -133,10 +134,11 @@ async def on_reaction_add(reaction, user):
     # リアクションするごとにポイントを5追加
     if user_id not in ADMIN_USER_IDS:
         user_points[user_id] += 5
+        save_data()  # データの保存
+
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await user.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
-    save_data()  # データの保存
 
 @bot.tree.command(name="ポイント", description="現在のポイントを表示します")
 @app_commands.describe(member="ポイントを確認するメンバー")
@@ -160,7 +162,7 @@ async def give_points(interaction: discord.Interaction, member: discord.Member, 
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-@bot.tree.command(name="ランキング", description="所持ポイント数と1ヶ月のメッセージ送信数のランキングを表示します")
+@bot.tree.command(name="ランキング", description="所持ポイント数と今月のメッセージ送信数のランキングを表示します")
 async def ranking(interaction: discord.Interaction):
     guild = interaction.guild  # サーバー（ギルド）情報を取得
     rankings = sorted([(user_id, points) for user_id, points in user_points.items()], key=lambda x: x[1], reverse=True)[:5]
@@ -197,7 +199,7 @@ async def show_commands_description(interaction: discord.Interaction):
     **使用可能なコマンド一覧**
     /ポイント - 現在のポイントを表示 🪙
     /ポイント贈答 - 他のメンバーにポイントをプレゼント 🎁
-    /ランキング - ポイントと今月のメッセージ送信数のランキングを表示 👑
+    /ランキング - 所持ポイント数と今月のメッセージ送信数のランキングを表示 👑
     /コマンド_説明 - 使用できるコマンド一覧とポイントの説明を表示
     /ショップ - 商品交換リンクを表示 🛒
     これらのコマンドを送ると、ワレカラくんがあなただけに見えるメッセージを送ります📩（ポイント贈答は他のメンバーにも見えます）
