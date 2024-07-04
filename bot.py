@@ -111,9 +111,8 @@ async def on_message(message):
     today = datetime.datetime.utcnow().date()
 
     # メッセージを投稿するごとにポイントを30追加
-    if user_id not in ADMIN_USER_IDS:
-        user_points[user_id] += 30
-        weekly_message_count[user_id] += 1
+    user_points[user_id] += 30
+    weekly_message_count[user_id] += 1
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await message.author.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
@@ -131,8 +130,7 @@ async def on_reaction_add(reaction, user):
     today = datetime.datetime.utcnow().date()
 
     # リアクションするごとにポイントを5追加
-    if user_id not in ADMIN_USER_IDS:
-        user_points[user_id] += 5
+    user_points[user_id] += 5
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await user.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
@@ -166,7 +164,11 @@ async def ranking(interaction: discord.Interaction):
     rankings = sorted([(user_id, points) for user_id, points in user_points.items()], key=lambda x: x[1], reverse=True)[:5]
     message_counts = sorted([(user_id, count) for user_id, count in weekly_message_count.items()], key=lambda x: x[1], reverse=True)[:5]
     response = "**ポイントランキング**\n"
+    seen_users = set()
     for i, (user_id, points) in enumerate(rankings):
+        if user_id in seen_users:
+            continue
+        seen_users.add(user_id)
         member = guild.get_member(user_id)
         if member:
             display_name = member.display_name
@@ -178,7 +180,11 @@ async def ranking(interaction: discord.Interaction):
                 display_name = "Unknown User"
         response += f'{i+1}. {display_name}: {points} 🪙\n'
     response += "\n**メッセージ数ランキング**\n"
+    seen_users.clear()
     for i, (user_id, count) in enumerate(message_counts):
+        if user_id in seen_users:
+            continue
+        seen_users.add(user_id)
         member = guild.get_member(user_id)
         if member:
             display_name = member.display_name
