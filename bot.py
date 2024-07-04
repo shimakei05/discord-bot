@@ -55,7 +55,7 @@ def load_data():
             user_points.update(data.get("user_points", {}))
             last_login_date.update({int(k): datetime.datetime.fromisoformat(v).date() for k, v in data.get("last_login_date", {}).items()})
             login_streaks.update(data.get("login_streaks", {}))
-            monthly_message_count.update({int(k): v for k, v in data.get("monthly_message_count", {}).items()})
+            monthly_message_count.update(data.get("monthly_message_count", {}))
             last_checked_month = datetime.datetime.utcnow().month
         logging.info("データが読み込まれました: %s", data)
     except FileNotFoundError:
@@ -126,10 +126,11 @@ async def on_message(message):
     if user_id not in ADMIN_USER_IDS:
         user_points[user_id] += 30
         monthly_message_count[user_id] += 1
+        save_data()  # データの保存
+
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await message.author.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
-    save_data()  # データの保存
 
     # 通常のメッセージ処理
     await bot.process_commands(message)
@@ -145,10 +146,11 @@ async def on_reaction_add(reaction, user):
     # リアクションするごとにポイントを5追加
     if user_id not in ADMIN_USER_IDS:
         user_points[user_id] += 5
+        save_data()  # データの保存
+
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await user.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
-    save_data()  # データの保存
 
 @bot.tree.command(name="ポイント", description="現在のポイントを表示します")
 @app_commands.describe(member="ポイントを確認するメンバー")
