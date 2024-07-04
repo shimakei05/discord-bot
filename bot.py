@@ -31,7 +31,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 user_points = defaultdict(int)
 last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン日を保存する辞書
 login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
-weekly_message_count = defaultdict(int)  # 1週間のメッセージ数を保存する辞書
+monthly_message_count = defaultdict(int)  # 1ヶ月のメッセージ数を保存する辞書
 
 def save_data():
     """ポイントとデータを保存"""
@@ -39,7 +39,7 @@ def save_data():
         "user_points": dict(user_points),
         "last_login_date": {str(k): str(v) for k, v in last_login_date.items()},
         "login_streaks": dict(login_streaks),
-        "weekly_message_count": dict(weekly_message_count)
+        "monthly_message_count": dict(monthly_message_count)
     }
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
@@ -47,14 +47,14 @@ def save_data():
 
 def load_data():
     """ポイントとデータを読み込む"""
-    global user_points, last_login_date, login_streaks, weekly_message_count
+    global user_points, last_login_date, login_streaks, monthly_message_count
     try:
         with open(DATA_FILE, "r") as f:
             data = json.load(f)
             user_points.update(data.get("user_points", {}))
             last_login_date.update({int(k): datetime.datetime.fromisoformat(v).date() for k, v in data.get("last_login_date", {}).items()})
             login_streaks.update(data.get("login_streaks", {}))
-            weekly_message_count.update(data.get("weekly_message_count", {}))
+            monthly_message_count.update(data.get("monthly_message_count", {}))
         logging.info("データが読み込まれました: %s", data)
     except FileNotFoundError:
         logging.info("データファイルが見つかりません。新しいファイルを作成します。")
@@ -111,8 +111,9 @@ async def on_message(message):
     today = datetime.datetime.utcnow().date()
 
     # メッセージを投稿するごとにポイントを30追加
-    user_points[user_id] += 30
-    weekly_message_count[user_id] += 1
+    if user_id not in ADMIN_USER_IDS:
+        user_points[user_id] += 30
+        monthly_message_count[user_id] += 1
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await message.author.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
@@ -130,7 +131,8 @@ async def on_reaction_add(reaction, user):
     today = datetime.datetime.utcnow().date()
 
     # リアクションするごとにポイントを5追加
-    user_points[user_id] += 5
+    if user_id not in ADMIN_USER_IDS:
+        user_points[user_id] += 5
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await user.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
@@ -158,17 +160,13 @@ async def give_points(interaction: discord.Interaction, member: discord.Member, 
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-@bot.tree.command(name="ランキング", description="所持ポイント数と1週間メッセージ送信数のランキングを表示します")
+@bot.tree.command(name="ランキング", description="所持ポイント数と1ヶ月のメッセージ送信数のランキングを表示します")
 async def ranking(interaction: discord.Interaction):
     guild = interaction.guild  # サーバー（ギルド）情報を取得
     rankings = sorted([(user_id, points) for user_id, points in user_points.items()], key=lambda x: x[1], reverse=True)[:5]
-    message_counts = sorted([(user_id, count) for user_id, count in weekly_message_count.items()], key=lambda x: x[1], reverse=True)[:5]
+    message_counts = sorted([(user_id, count) for user_id, count in monthly_message_count.items()], key=lambda x: x[1], reverse=True)[:5]
     response = "**ポイントランキング**\n"
-    seen_users = set()
     for i, (user_id, points) in enumerate(rankings):
-        if user_id in seen_users:
-            continue
-        seen_users.add(user_id)
         member = guild.get_member(user_id)
         if member:
             display_name = member.display_name
@@ -179,12 +177,8 @@ async def ranking(interaction: discord.Interaction):
             except:
                 display_name = "Unknown User"
         response += f'{i+1}. {display_name}: {points} 🪙\n'
-    response += "\n**メッセージ数ランキング**\n"
-    seen_users.clear()
+    response += "\n**今月のメッセージ送信数ランキング**\n"
     for i, (user_id, count) in enumerate(message_counts):
-        if user_id in seen_users:
-            continue
-        seen_users.add(user_id)
         member = guild.get_member(user_id)
         if member:
             display_name = member.display_name
@@ -203,7 +197,7 @@ async def show_commands_description(interaction: discord.Interaction):
     **使用可能なコマンド一覧**
     /ポイント - 現在のポイントを表示 🪙
     /ポイント贈答 - 他のメンバーにポイントをプレゼント 🎁
-    /ランキング - ポイントとメッセージ数のランキングを表示 👑
+    /ランキング - ポイントと今月のメッセージ送信数のランキングを表示 👑
     /コマンド_説明 - 使用できるコマンド一覧とポイントの説明を表示
     /ショップ - 商品交換リンクを表示 🛒
     これらのコマンドを送ると、ワレカラくんがあなただけに見えるメッセージを送ります📩（ポイント贈答は他のメンバーにも見えます）
