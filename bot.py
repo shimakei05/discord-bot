@@ -55,7 +55,7 @@ def load_data():
             user_points.update(data.get("user_points", {}))
             last_login_date.update({int(k): datetime.datetime.fromisoformat(v).date() for k, v in data.get("last_login_date", {}).items()})
             login_streaks.update(data.get("login_streaks", {}))
-            monthly_message_count.update(data.get("monthly_message_count", {}))
+            monthly_message_count.update({int(k): v for k, v in data.get("monthly_message_count", {}).items()})
             last_checked_month = datetime.datetime.utcnow().month
         logging.info("データが読み込まれました: %s", data)
     except FileNotFoundError:
