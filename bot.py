@@ -84,6 +84,9 @@ async def on_resumed():
     logging.info('Bot has resumed connection')
 
 def check_and_give_login_bonus(user_id, today):
+    if user_id in ADMIN_USER_IDS:
+        return ""
+    
     last_login = last_login_date[user_id]
     bonus_message = ""
     if last_login is None or last_login != today:
@@ -118,10 +121,11 @@ async def on_message(message):
     user_id = message.author.id
     today = current_date
 
-    # メッセージを投稿するごとにポイントを30追加
-    user_points[user_id] += 30
-    monthly_message_count[user_id] += 1
-    save_data()  # データの保存
+    if user_id not in ADMIN_USER_IDS:
+        # メッセージを投稿するごとにポイントを30追加
+        user_points[user_id] += 30
+        monthly_message_count[user_id] += 1
+        save_data()  # データの保存
 
     bonus_message = check_and_give_login_bonus(user_id, today)
     if bonus_message:
@@ -138,9 +142,10 @@ async def on_reaction_add(reaction, user):
     user_id = user.id
     today = current_date
 
-    # リアクションするごとにポイントを5追加
-    user_points[user_id] += 5
-    save_data()  # データの保存
+    if user_id not in ADMIN_USER_IDS:
+        # リアクションするごとにポイントを5追加
+        user_points[user_id] += 5
+        save_data()  # データの保存
 
     bonus_message = check_and_give_login_bonus(user_id, today)
     if bonus_message:
@@ -171,8 +176,8 @@ async def give_points(interaction: discord.Interaction, member: discord.Member, 
 @bot.tree.command(name="ランキング", description="所持ポイント数と今月のメッセージ送信数のランキングを表示します")
 async def ranking(interaction: discord.Interaction):
     guild = interaction.guild  # サーバー（ギルド）情報を取得
-    rankings = sorted([(user_id, points) for user_id, points in user_points.items()], key=lambda x: x[1], reverse=True)[:5]
-    message_counts = sorted([(user_id, count) for user_id, count in monthly_message_count.items()], key=lambda x: x[1], reverse=True)[:5]
+    rankings = sorted([(user_id, points) for user_id, points in user_points.items() if user_id not in ADMIN_USER_IDS], key=lambda x: x[1], reverse=True)[:5]
+    message_counts = sorted([(user_id, count) for user_id, count in monthly_message_count.items() if user_id not in ADMIN_USER_IDS], key=lambda x: x[1], reverse=True)[:5]
     response = "**ポイントランキング**\n"
     for i, (user_id, points) in enumerate(rankings):
         member = guild.get_member(user_id)
@@ -245,18 +250,6 @@ async def check_reset_date():
         current_date = datetime.datetime.utcnow().date()
         save_data()
         logging.info("メッセージ数がリセットされました。")
-
-@bot.tree.command(name="simulate_date_change", description="日付を変更します（テスト用）")
-@app_commands.describe(days="日付に加算する日数（例: +1, +30）")
-async def simulate_date_change(interaction: discord.Interaction, days: str):
-    global current_date
-    try:
-        delta = datetime.timedelta(days=int(days))
-        current_date += delta
-        await interaction.response.send_message(f"日付が変更されました。現在の日付: {current_date}", ephemeral=True)
-        check_reset_date.restart()  # タスクをリスタート
-    except ValueError:
-        await interaction.response.send_message("無効な日付の形式です。例: +1, +30", ephemeral=True)
 
 if __name__ == "__main__":
     from http.server import HTTPServer, BaseHTTPRequestHandler
