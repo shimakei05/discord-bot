@@ -249,8 +249,10 @@ async def simulate_date_change(interaction: discord.Interaction, days: str):
         days = int(days)
         for user_id in last_login_date:
             last_login_date[user_id] += datetime.timedelta(days=days)
-        await interaction.response.send_message(f"日付が変更されました。現在の日付: {last_login_date[interaction.user.id]}", ephemeral=True)
-        check_reset_date.start()  # 変更後の月チェックを強制的に開始
+        current_date = datetime.datetime.utcnow().date() + datetime.timedelta(days=days)
+        check_reset_date.change_interval(seconds=1)  # 1秒毎にチェックを変更
+        await interaction.response.send_message(f"日付が変更されました。現在の日付: {current_date}", ephemeral=True)
+        check_reset_date.restart()  # 変更後の月チェックを強制的に再起動
         save_data()
     else:
         await interaction.response.send_message("日付の変更には + または - を使用してください。例: +1 または -1", ephemeral=True)
