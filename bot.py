@@ -33,7 +33,7 @@ last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン
 login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
 monthly_message_count = defaultdict(int)  # 1ヶ月のメッセージ数を保存する辞書
 
-current_month = datetime.datetime.utcnow().month
+current_date = datetime.datetime.utcnow().date()
 
 def save_data():
     """ポイントとデータを保存"""
@@ -111,7 +111,7 @@ async def on_message(message):
         return
 
     user_id = message.author.id
-    today = datetime.datetime.utcnow().date()
+    today = current_date
 
     # メッセージを投稿するごとにポイントを30追加
     user_points[user_id] += 30
@@ -131,7 +131,7 @@ async def on_reaction_add(reaction, user):
         return
 
     user_id = user.id
-    today = datetime.datetime.utcnow().date()
+    today = current_date
 
     # リアクションするごとにポイントを5追加
     user_points[user_id] += 5
@@ -233,24 +233,22 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
 
 @tasks.loop(hours=24)
 async def check_reset_date():
-    global current_month
-    today = datetime.datetime.utcnow().date()
-    if today.month != current_month:
+    global current_date
+    today = current_date
+    if today.month != datetime.datetime.utcnow().date().month:
         monthly_message_count.clear()
-        current_month = today.month
+        current_date = datetime.datetime.utcnow().date()
         save_data()
         logging.info("メッセージ数がリセットされました。")
 
 @bot.tree.command(name="simulate_date_change", description="日付を変更します（テスト用）")
 @app_commands.describe(days="日付に加算する日数（例: +1, +30）")
 async def simulate_date_change(interaction: discord.Interaction, days: str):
-    global current_month
+    global current_date
     try:
         delta = datetime.timedelta(days=int(days))
-        new_date = datetime.datetime.utcnow() + delta
-        datetime.datetime.utcnow = lambda: new_date  # 時刻をシミュレートされた新しい時刻に設定
-        current_month = new_date.month
-        await interaction.response.send_message(f"日付が変更されました。現在の日付: {new_date.date()}", ephemeral=True)
+        current_date += delta
+        await interaction.response.send_message(f"日付が変更されました。現在の日付: {current_date}", ephemeral=True)
         check_reset_date.restart()  # タスクをリスタート
     except ValueError:
         await interaction.response.send_message("無効な日付の形式です。例: +1, +30", ephemeral=True)
