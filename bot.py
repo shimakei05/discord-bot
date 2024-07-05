@@ -14,7 +14,6 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 
 # データファイルのパス
 DATA_FILE = "user_data.json"
-RESET_DATE_FILE = "reset_date.json"
 
 # 管理者のユーザーID
 ADMIN_USER_IDS = {726414082915172403}  # ここに管理者のユーザーIDを追加
@@ -34,16 +33,13 @@ last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン
 login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
 monthly_message_count = defaultdict(int)  # 1ヶ月のメッセージ数を保存する辞書
 
-current_date = datetime.datetime.utcnow().date()  # 現在の日付を保持する変数
-
 def save_data():
     """ポイントとデータを保存"""
     data = {
         "user_points": dict(user_points),
         "last_login_date": {str(k): str(v) for k, v in last_login_date.items()},
         "login_streaks": dict(login_streaks),
-        "monthly_message_count": dict(monthly_message_count),
-        "current_date": current_date.isoformat()  # 現在の日付を保存
+        "monthly_message_count": dict(monthly_message_count)
     }
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
@@ -51,7 +47,7 @@ def save_data():
 
 def load_data():
     """ポイントとデータを読み込む"""
-    global user_points, last_login_date, login_streaks, monthly_message_count, current_date
+    global user_points, last_login_date, login_streaks, monthly_message_count
     try:
         with open(DATA_FILE, "r") as f:
             data = json.load(f)
@@ -59,7 +55,6 @@ def load_data():
             last_login_date.update({int(k): datetime.datetime.fromisoformat(v).date() for k, v in data.get("last_login_date", {}).items()})
             login_streaks.update(data.get("login_streaks", {}))
             monthly_message_count.update(data.get("monthly_message_count", {}))
-            current_date = datetime.datetime.fromisoformat(data.get("current_date", current_date.isoformat())).date()
         logging.info("データが読み込まれました: %s", data)
     except FileNotFoundError:
         logging.info("データファイルが見つかりません。新しいファイルを作成します。")
@@ -76,7 +71,7 @@ async def on_ready():
         logging.error(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
     logging.info(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
-    check_reset_date.start()  # 月次リセットのチェックタスクを開始
+    check_reset_date.start()  # 月のリセットチェックを開始
 
 @bot.event
 async def on_disconnect():
@@ -114,7 +109,7 @@ async def on_message(message):
         return
 
     user_id = message.author.id
-    today = current_date
+    today = datetime.datetime.utcnow().date()
 
     # メッセージを投稿するごとにポイントを30追加
     user_points[user_id] += 30
@@ -134,7 +129,7 @@ async def on_reaction_add(reaction, user):
         return
 
     user_id = user.id
-    today = current_date
+    today = datetime.datetime.utcnow().date()
 
     # リアクションするごとにポイントを5追加
     user_points[user_id] += 5
@@ -143,18 +138,6 @@ async def on_reaction_add(reaction, user):
     login_bonus_given = check_and_give_login_bonus(user_id, today)
     if login_bonus_given:
         await user.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
-
-@bot.tree.command(name="simulate_date_change", description="日付を変更してシミュレーションを行います")
-@app_commands.describe(days="日付の変更量（例: +1 で1日進める, -1 で1日戻す）")
-async def simulate_date_change(interaction: discord.Interaction, days: str):
-    global current_date
-    try:
-        days = int(days)
-        current_date += datetime.timedelta(days=days)
-        await interaction.response.send_message(f'日付が変更されました。現在の日付: {current_date}', ephemeral=True)
-        logging.info(f'現在の日付: {current_date}')
-    except ValueError:
-        await interaction.response.send_message('日付の変更量は整数で指定してください。', ephemeral=True)
 
 @bot.tree.command(name="ポイント", description="現在のポイントを表示します")
 @app_commands.describe(member="ポイントを確認するメンバー")
@@ -246,16 +229,26 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-@tasks.loop(minutes=60)
+# 月の変わり目をチェックするタスク
+@tasks.loop(hours=24)
 async def check_reset_date():
-    global current_date
     today = datetime.datetime.utcnow().date()
-    if today != current_date:
-        current_date = today
-        if current_date.day == 1:
-            monthly_message_count.clear()
-            logging.info("メッセージ数がリセットされました")
-            save_data()
+    if today.day == 1:  # 月の初めの日付をチェック
+        monthly_message_count.clear()
+        save_data()
+        logging.info("月が変わりました。メッセージ数がリセットされました。")
+
+@bot.tree.command(name="simulate_date_change", description="日付を変更してシミュレートします")
+@app_commands.describe(days="変更する日数（例: +1, -1）")
+async def simulate_date_change(interaction: discord.Interaction, days: str):
+    try:
+        delta = datetime.timedelta(days=int(days))
+        for user_id in last_login_date:
+            last_login_date[user_id] += delta
+        save_data()
+        await interaction.response.send_message(f"日付が変更されました。現在の日付: {last_login_date[next(iter(last_login_date))]}", ephemeral=True)
+    except ValueError:
+        await interaction.response.send_message("無効な日数です。例: +1, -1", ephemeral=True)
 
 if __name__ == "__main__":
     from http.server import HTTPServer, BaseHTTPRequestHandler
