@@ -245,25 +245,36 @@ async def show_commands_description(interaction: discord.Interaction):
     
     await interaction.response.send_message(commands_list, ephemeral=True)
 
-@bot.tree.command(name="ショップ",description="商品交換リンクを表示します")
-async def shop(interaction:discord.Interaction):
-    response="リンク先から交換可能なアイテム一覧をご確認ください🛒\nhttps://forms.gle/gtUC7Au8KfWenXrD6"
-    await interaction.response.send_message(response,ephemeral=True)
+@bot.tree.command(name="ショップ", description="商品交換リンクを表示します")
+async def shop(interaction: discord.Interaction):
+    response = "リンク先から交換可能なアイテム一覧をご確認ください🛒\nhttps://forms.gle/gtUC7Au8KfWenXrD6"
+    await interaction.response.send_message(response, ephemeral=True)
 
 # 管理者向けのポイントマイナス機能
-@bot.tree.command(name="ポイント減算",description="他のメンバーのポイントを減算します")
-@app_commands.describe(member="ポイントを減算するメンバー",points="減算するポイント数")
-async def subtract_points(interaction:discord.Interaction,member:discord.Member,points:int):
+@bot.tree.command(name="ポイント減算", description="他のメンバーのポイントを減算します")
+@app_commands.describe(member="ポイントを減算するメンバー", points="減算するポイント数")
+async def subtract_points(interaction: discord.Interaction, member: discord.Member, points: int):
     if interaction.user.id in ADMIN_USER_IDS:
-        user_points[member.id]-=points
-        save_data()#データの保存
+        user_points[member.id] -= points
+        save_data()  # データの保存
         await member.send(f'{interaction.user.name}が{points}ポイントを引きました。')
-        await interaction.response.send_message(f'{member.mention}のポイントが{points}減りました。',ephemeral=True)
+        await interaction.response.send_message(f'{member.mention}のポイントが{points}減りました。', ephemeral=True)
     else:
-        await interaction.response.send_message('このコマンドを実行する権限がありません。',ephemeral=True)
+        await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-if __name__=="__main__":
-    from http.server import HTTPServer,BaseHTTPRequestHandler
+# シミュレーション用コマンド
+@bot.tree.command(name="simulate_date_change", description="日付をシミュレーション用に変更します")
+@app_commands.describe(days="変更する日数（例: +1で翌日、-1で前日）")
+async def simulate_date_change(interaction: discord.Interaction, days: int):
+    today = datetime.datetime.utcnow().date()
+    new_date = today + datetime.timedelta(days=days)
+    for user_id in last_login_date.keys():
+        last_login_date[user_id] = new_date
+    save_data()
+    await interaction.response.send_message(f"日付が {days} 日変更されました。新しい日付: {new_date}", ephemeral=True)
+
+if __name__ == "__main__":
+    from http.server import HTTPServer, BaseHTTPRequestHandler
     import threading
 
     class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
@@ -273,7 +284,7 @@ if __name__=="__main__":
             self.wfile.write(b"Server is running")
 
     def run_server():
-        server=HTTPServer(('0.0.0.0',8000),SimpleHTTPRequestHandler)
+        server = HTTPServer(('0.0.0.0', 8000), SimpleHTTPRequestHandler)
         server.serve_forever()
 
     threading.Thread(target=run_server).start()
