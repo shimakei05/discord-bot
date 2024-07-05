@@ -32,6 +32,7 @@ user_points = defaultdict(int)
 last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン日を保存する辞書
 login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
 monthly_message_count = defaultdict(int)  # 1ヶ月のメッセージ数を保存する辞書
+last_checked_month = datetime.datetime.utcnow().month  # 最後に月を確認した時の月
 
 def save_data():
     """ポイントとデータを保存"""
@@ -39,7 +40,8 @@ def save_data():
         "user_points": dict(user_points),
         "last_login_date": {str(k): str(v) for k, v in last_login_date.items()},
         "login_streaks": dict(login_streaks),
-        "monthly_message_count": dict(monthly_message_count)
+        "monthly_message_count": dict(monthly_message_count),
+        "last_checked_month": last_checked_month
     }
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
@@ -47,7 +49,7 @@ def save_data():
 
 def load_data():
     """ポイントとデータを読み込む"""
-    global user_points, last_login_date, login_streaks, monthly_message_count
+    global user_points, last_login_date, login_streaks, monthly_message_count, last_checked_month
     try:
         with open(DATA_FILE, "r") as f:
             data = json.load(f)
@@ -55,6 +57,7 @@ def load_data():
             last_login_date.update({int(k): datetime.datetime.fromisoformat(v).date() for k, v in data.get("last_login_date", {}).items()})
             login_streaks.update(data.get("login_streaks", {}))
             monthly_message_count.update(data.get("monthly_message_count", {}))
+            last_checked_month = data.get("last_checked_month", datetime.datetime.utcnow().month)
         logging.info("データが読み込まれました: %s", data)
     except FileNotFoundError:
         logging.info("データファイルが見つかりません。新しいファイルを作成します。")
@@ -71,7 +74,7 @@ async def on_ready():
         logging.error(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
     logging.info(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
-    reset_monthly_message_count.start()  # タスクを開始
+    check_month_change.start()  # 月の変化を確認するタスクを開始
 
 @bot.event
 async def on_disconnect():
@@ -83,9 +86,10 @@ async def on_resumed():
 
 def check_and_give_login_bonus(user_id, today):
     last_login = last_login_date[user_id]
-    message = f'ログインボーナスとして 50 🪙 ポイントを獲得しました！'
+    bonus_message = ""
     if last_login is None or last_login != today:
         user_points[user_id] += 50
+        bonus_message = "ログインボーナスとして 50 🪙 ポイントを獲得しました！"
         if last_login is None or (today - last_login).days > 1:
             login_streaks[user_id] = 1
         else:
@@ -94,18 +98,17 @@ def check_and_give_login_bonus(user_id, today):
         streak_days = login_streaks[user_id]
         if streak_days == 3:
             user_points[user_id] += 50
-            message += f'さらに、3日連続のログインボーナスとして追加で50ポイントを獲得しました！'
+            bonus_message += "さらに、3日連続のログインボーナスとして追加で50ポイントを獲得しました！"
         elif streak_days == 5:
             user_points[user_id] += 100
-            message += f'さらに、5日連続のログインボーナスとして追加で100ポイントを獲得しました！'
+            bonus_message += "さらに、5日連続のログインボーナスとして追加で100ポイントを獲得しました！"
         elif streak_days == 10:
             user_points[user_id] += 200
-            message += f'さらに、10日連続のログインボーナスとして追加で200ポイントを獲得しました！'
+            bonus_message += "さらに、10日連続のログインボーナスとして追加で200ポイントを獲得しました！"
             login_streaks[user_id] = 0
 
         last_login_date[user_id] = today
-        message += f'現在のポイント: {user_points[user_id]} 🪙'
-        return message
+        return bonus_message
     return None
 
 @bot.event
@@ -121,9 +124,9 @@ async def on_message(message):
     monthly_message_count[user_id] += 1
     save_data()  # データの保存
 
-    login_bonus_message = check_and_give_login_bonus(user_id, today)
-    if login_bonus_message:
-        await message.author.send(login_bonus_message)
+    bonus_message = check_and_give_login_bonus(user_id, today)
+    if bonus_message:
+        await message.author.send(f'{bonus_message} 現在のポイント: {user_points[user_id]} 🪙')
 
     # 通常のメッセージ処理
     await bot.process_commands(message)
@@ -140,9 +143,9 @@ async def on_reaction_add(reaction, user):
     user_points[user_id] += 5
     save_data()  # データの保存
 
-    login_bonus_message = check_and_give_login_bonus(user_id, today)
-    if login_bonus_message:
-        await user.send(login_bonus_message)
+    bonus_message = check_and_give_login_bonus(user_id, today)
+    if bonus_message:
+        await user.send(f'{bonus_message} 現在のポイント: {user_points[user_id]} 🪙')
 
 @bot.tree.command(name="ポイント", description="現在のポイントを表示します")
 @app_commands.describe(member="ポイントを確認するメンバー")
@@ -234,24 +237,28 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-@bot.tree.command(name="simulate_date_change", description="日付をシミュレートして変更します")
-@app_commands.describe(days="変更する日数。例: +1, -1")
+@bot.tree.command(name="simulate_date_change", description="日付をシミュレートします")
+@app_commands.describe(days="シミュレートする日数 (例: +1, -1, +30)")
 async def simulate_date_change(interaction: discord.Interaction, days: str):
     try:
-        delta = int(days)
-        new_date = datetime.datetime.utcnow() + datetime.timedelta(days=delta)
-        bot.current_date = new_date  # 現在の日付を更新
-        await interaction.response.send_message(f"日付が変更されました。現在の日付: {new_date.strftime('%Y-%m-%d')}", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("無効な日数です。例: +1, -1", ephemeral=True)
+        current_date = datetime.datetime.utcnow()
+        new_date = current_date + datetime.timedelta(days=int(days))
+        global last_checked_month
+        last_checked_month = new_date.month  # 新しい日付の月を設定
+        datetime.datetime.utcnow = lambda: new_date  # 時刻をシミュレートされた新しい時刻に設定
+        save_data()  # データの保存
+        await interaction.response.send_message(f'日付が変更されました。現在の日付: {new_date.strftime("%Y-%m-%d")}', ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f'日付の変更に失敗しました: {e}', ephemeral=True)
 
 @tasks.loop(hours=24)
-async def reset_monthly_message_count():
-    today = datetime.datetime.utcnow().date()
-    if today.day == 1:
+async def check_month_change():
+    current_month = datetime.datetime.utcnow().month
+    global last_checked_month
+    if current_month != last_checked_month:
         monthly_message_count.clear()
-        save_data()
-        logging.info("メッセージ数がリセットされました。")
+        last_checked_month = current_month
+        save_data()  # データの保存
 
 if __name__ == "__main__":
     from http.server import HTTPServer, BaseHTTPRequestHandler
