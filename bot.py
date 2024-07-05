@@ -33,8 +33,6 @@ last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン
 login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
 monthly_message_count = defaultdict(int)  # 1ヶ月のメッセージ数を保存する辞書
 
-current_date = datetime.datetime.utcnow().date()
-
 def save_data():
     """ポイントとデータを保存"""
     data = {
@@ -73,7 +71,7 @@ async def on_ready():
         logging.error(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
     logging.info(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
-    check_reset_date.start()  # タスクの開始
+    reset_monthly_message_count.start()  # タスクを開始
 
 @bot.event
 async def on_disconnect():
@@ -85,6 +83,7 @@ async def on_resumed():
 
 def check_and_give_login_bonus(user_id, today):
     last_login = last_login_date[user_id]
+    message = f'ログインボーナスとして 50 🪙 ポイントを獲得しました！'
     if last_login is None or last_login != today:
         user_points[user_id] += 50
         if last_login is None or (today - last_login).days > 1:
@@ -95,15 +94,19 @@ def check_and_give_login_bonus(user_id, today):
         streak_days = login_streaks[user_id]
         if streak_days == 3:
             user_points[user_id] += 50
+            message += f'さらに、3日連続のログインボーナスとして追加で50ポイントを獲得しました！'
         elif streak_days == 5:
             user_points[user_id] += 100
+            message += f'さらに、5日連続のログインボーナスとして追加で100ポイントを獲得しました！'
         elif streak_days == 10:
             user_points[user_id] += 200
+            message += f'さらに、10日連続のログインボーナスとして追加で200ポイントを獲得しました！'
             login_streaks[user_id] = 0
 
         last_login_date[user_id] = today
-        return True
-    return False
+        message += f'現在のポイント: {user_points[user_id]} 🪙'
+        return message
+    return None
 
 @bot.event
 async def on_message(message):
@@ -111,16 +114,16 @@ async def on_message(message):
         return
 
     user_id = message.author.id
-    today = current_date
+    today = datetime.datetime.utcnow().date()
 
     # メッセージを投稿するごとにポイントを30追加
     user_points[user_id] += 30
     monthly_message_count[user_id] += 1
     save_data()  # データの保存
 
-    login_bonus_given = check_and_give_login_bonus(user_id, today)
-    if login_bonus_given:
-        await message.author.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
+    login_bonus_message = check_and_give_login_bonus(user_id, today)
+    if login_bonus_message:
+        await message.author.send(login_bonus_message)
 
     # 通常のメッセージ処理
     await bot.process_commands(message)
@@ -131,15 +134,15 @@ async def on_reaction_add(reaction, user):
         return
 
     user_id = user.id
-    today = current_date
+    today = datetime.datetime.utcnow().date()
 
     # リアクションするごとにポイントを5追加
     user_points[user_id] += 5
     save_data()  # データの保存
 
-    login_bonus_given = check_and_give_login_bonus(user_id, today)
-    if login_bonus_given:
-        await user.send(f'ログインボーナスとして 50 🪙 ポイントを獲得しました！現在のポイント: {user_points[user_id]} 🪙')
+    login_bonus_message = check_and_give_login_bonus(user_id, today)
+    if login_bonus_message:
+        await user.send(login_bonus_message)
 
 @bot.tree.command(name="ポイント", description="現在のポイントを表示します")
 @app_commands.describe(member="ポイントを確認するメンバー")
@@ -231,27 +234,24 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
+@bot.tree.command(name="simulate_date_change", description="日付をシミュレートして変更します")
+@app_commands.describe(days="変更する日数。例: +1, -1")
+async def simulate_date_change(interaction: discord.Interaction, days: str):
+    try:
+        delta = int(days)
+        new_date = datetime.datetime.utcnow() + datetime.timedelta(days=delta)
+        bot.current_date = new_date  # 現在の日付を更新
+        await interaction.response.send_message(f"日付が変更されました。現在の日付: {new_date.strftime('%Y-%m-%d')}", ephemeral=True)
+    except ValueError:
+        await interaction.response.send_message("無効な日数です。例: +1, -1", ephemeral=True)
+
 @tasks.loop(hours=24)
-async def check_reset_date():
-    global current_date
-    today = current_date
-    if today.month != datetime.datetime.utcnow().date().month:
+async def reset_monthly_message_count():
+    today = datetime.datetime.utcnow().date()
+    if today.day == 1:
         monthly_message_count.clear()
-        current_date = datetime.datetime.utcnow().date()
         save_data()
         logging.info("メッセージ数がリセットされました。")
-
-@bot.tree.command(name="simulate_date_change", description="日付を変更します（テスト用）")
-@app_commands.describe(days="日付に加算する日数（例: +1, +30）")
-async def simulate_date_change(interaction: discord.Interaction, days: str):
-    global current_date
-    try:
-        delta = datetime.timedelta(days=int(days))
-        current_date += delta
-        await interaction.response.send_message(f"日付が変更されました。現在の日付: {current_date}", ephemeral=True)
-        check_reset_date.restart()  # タスクをリスタート
-    except ValueError:
-        await interaction.response.send_message("無効な日付の形式です。例: +1, +30", ephemeral=True)
 
 if __name__ == "__main__":
     from http.server import HTTPServer, BaseHTTPRequestHandler
