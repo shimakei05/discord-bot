@@ -99,13 +99,13 @@ def check_and_give_login_bonus(user_id, today):
         streak_days = login_streaks[user_id]
         if streak_days == 3:
             user_points[user_id] += 50
-            bonus_message += "さらに、3日連続のログインボーナスとして追加で50ポイントを獲得しました！"
+            bonus_message += " さらに、3日連続のログインボーナスとして追加で50ポイントを獲得しました！"
         elif streak_days == 5:
             user_points[user_id] += 100
-            bonus_message += "さらに、5日連続のログインボーナスとして追加で100ポイントを獲得しました！"
+            bonus_message += " さらに、5日連続のログインボーナスとして追加で100ポイントを獲得しました！"
         elif streak_days == 10:
             user_points[user_id] += 200
-            bonus_message += "さらに、10日連続のログインボーナスとして追加で200ポイントを獲得しました！"
+            bonus_message += " さらに、10日連続のログインボーナスとして追加で200ポイントを獲得しました！"
             login_streaks[user_id] = 0
 
         last_login_date[user_id] = today
@@ -127,7 +127,7 @@ async def on_message(message):
 
     bonus_message = check_and_give_login_bonus(user_id, today)
     if bonus_message:
-        await message.author.send(f'{bonus_message}現在のポイント: {user_points[user_id]} 🪙')
+        await message.author.send(f'{bonus_message} 現在のポイント: {user_points[user_id]} 🪙')
 
     # 通常のメッセージ処理
     await bot.process_commands(message)
@@ -146,7 +146,7 @@ async def on_reaction_add(reaction, user):
 
     bonus_message = check_and_give_login_bonus(user_id, today)
     if bonus_message:
-        await user.send(f'{bonus_message}現在のポイント: {user_points[user_id]} 🪙')
+        await user.send(f'{bonus_message} 現在のポイント: {user_points[user_id]} 🪙')
 
 @bot.tree.command(name="ポイント", description="現在のポイントを表示します")
 @app_commands.describe(member="ポイントを確認するメンバー")
