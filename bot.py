@@ -65,6 +65,7 @@ def load_data():
 
 @bot.event
 async def on_ready():
+    global current_date
     logging.info(f'Logged in as {bot.user}')
     try:
         synced = await bot.tree.sync()
@@ -73,6 +74,14 @@ async def on_ready():
         logging.error(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
     logging.info(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
+    
+    # 日付変更のチェック
+    if current_date != datetime.datetime.utcnow().date():
+        current_date = datetime.datetime.utcnow().date()
+        monthly_message_count.clear()
+        save_data()
+        logging.info("日付が変更されました。メッセージ数がリセットされました。")
+
     check_reset_date.start()  # タスクの開始
 
 @bot.event
@@ -119,7 +128,7 @@ async def on_message(message):
         return
 
     user_id = message.author.id
-    today = current_date
+    today = datetime.datetime.utcnow().date()  # 日付を取得
 
     if user_id not in ADMIN_USER_IDS:
         # メッセージを投稿するごとにポイントを30追加
@@ -140,7 +149,7 @@ async def on_reaction_add(reaction, user):
         return
 
     user_id = user.id
-    today = current_date
+    today = datetime.datetime.utcnow().date()  # 日付を取得
 
     if user_id not in ADMIN_USER_IDS:
         # リアクションするごとにポイントを5追加
@@ -241,13 +250,14 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
 
-@tasks.loop(hours=24)
+@tasks.loop(hours=1)
 async def check_reset_date():
     global current_date
-    today = current_date
-    if today.month != datetime.datetime.utcnow().date().month:
+    today = datetime.datetime.utcnow().date()
+    if current_date != today:
+        logging.info(f'日付が変更されました: {current_date} -> {today}')
+        current_date = today
         monthly_message_count.clear()
-        current_date = datetime.datetime.utcnow().date()
         save_data()
         logging.info("メッセージ数がリセットされました。")
 
