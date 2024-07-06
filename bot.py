@@ -1,11 +1,14 @@
 import discord
 from discord import app_commands
-from discord.ext import commands, tasks
+from discord.ext import commands
 from collections import defaultdict
 import datetime
 import json
 import os
 import logging
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from pytz import timezone
 
 logging.basicConfig(level=logging.INFO)
 
@@ -73,7 +76,7 @@ async def on_ready():
         logging.error(f'Failed to sync commands: {e}')
     load_data()  # データの読み込み
     logging.info(f'ポイントデータ: {user_points}')  # 追加: ポイントデータの確認
-    check_reset_date.start()  # タスクの開始
+    scheduler.start()  # スケジューラの開始
 
 @bot.event
 async def on_disconnect():
@@ -84,10 +87,6 @@ async def on_resumed():
     logging.info('Bot has resumed connection')
 
 def check_and_give_login_bonus(user_id, today):
-    # 管理者チェックをコメントアウト
-    # if user_id in ADMIN_USER_IDS:
-    #    return ""
-    
     last_login = last_login_date[user_id]
     bonus_message = ""
     if last_login is None or last_login != today:
@@ -114,14 +113,14 @@ def check_and_give_login_bonus(user_id, today):
         return bonus_message
     return bonus_message
 
-@tasks.loop(minutes=1)
-async def check_reset_date():
+def reset_daily_tasks():
     global current_date
     today = datetime.datetime.utcnow().date()
     logging.info(f"タスク実行 - 現在の日付: {today}, 記録された日付: {current_date}")  # 日付変更確認用のログ
 
+    # 日付が変更された場合
     if today != current_date:
-        logging.info(f"日付が変更されました。旧日付: {current_date}, 新日付: {today}")
+        logging.info(f"日付が変更されました。旧日付: {current_date}, 新日付: {today}")  # 日付変更のログ
         monthly_message_count.clear()
         current_date = today
         save_data()
@@ -129,6 +128,8 @@ async def check_reset_date():
     else:
         logging.info("日付は変更されていません。")
 
+scheduler = AsyncIOScheduler()
+scheduler.add_job(reset_daily_tasks, CronTrigger(hour=0, minute=0, timezone=timezone("Asia/Tokyo")))
 
 @bot.event
 async def on_message(message):
@@ -255,22 +256,6 @@ async def subtract_points(interaction: discord.Interaction, member: discord.Memb
         await interaction.response.send_message(f'{member.mention}のポイントが{points}減りました。', ephemeral=True)
     else:
         await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
-
-@tasks.loop(minutes=1)  # ここを hours=24 から minutes=1 に変更しました（テスト用）
-async def check_reset_date():
-    global current_date
-    today = datetime.datetime.utcnow().date()
-    logging.info(f"タスク実行 - 現在の日付: {today}, 記録された日付: {current_date}")  # 日付変更確認用のログ
-
-    # 日付が変更された場合
-    if today != current_date:
-        logging.info(f"日付が変更されました。旧日付: {current_date}, 新日付: {today}")  # 日付変更のログ
-        monthly_message_count.clear()
-        current_date = today
-        save_data()
-        logging.info("メッセージ数がリセットされました。")
-    else:
-        logging.info("日付は変更されていません。")
 
 if __name__ == "__main__":
     from http.server import HTTPServer, BaseHTTPRequestHandler
