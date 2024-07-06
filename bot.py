@@ -84,6 +84,10 @@ async def on_resumed():
     logging.info('Bot has resumed connection')
 
 def check_and_give_login_bonus(user_id, today):
+    # 管理者チェックをコメントアウト
+    # if user_id in ADMIN_USER_IDS:
+    #    return ""
+    
     last_login = last_login_date[user_id]
     bonus_message = ""
     if last_login is None or last_login != today:
@@ -109,6 +113,22 @@ def check_and_give_login_bonus(user_id, today):
         last_login_date[user_id] = today
         return bonus_message
     return bonus_message
+
+@tasks.loop(minutes=1)
+async def check_reset_date():
+    global current_date
+    today = datetime.datetime.utcnow().date()
+    logging.info(f"タスク実行 - 現在の日付: {today}, 記録された日付: {current_date}")  # 日付変更確認用のログ
+
+    if today != current_date:
+        logging.info(f"日付が変更されました。旧日付: {current_date}, 新日付: {today}")
+        monthly_message_count.clear()
+        current_date = today
+        save_data()
+        logging.info("メッセージ数がリセットされました。")
+    else:
+        logging.info("日付は変更されていません。")
+
 
 @bot.event
 async def on_message(message):
