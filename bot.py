@@ -36,7 +36,7 @@ last_login_date = defaultdict(lambda: None)  # ユーザーの最終ログイン
 login_streaks = defaultdict(int)  # 連続ログイン日数を保存する辞書
 monthly_message_count = defaultdict(int)  # 1ヶ月のメッセージ数を保存する辞書
 
-current_date = datetime.datetime.utcnow().date()
+current_date = datetime.datetime.now(timezone("Asia/Tokyo")).date()
 
 def save_data():
     """ポイントとデータを保存"""
@@ -115,7 +115,7 @@ def check_and_give_login_bonus(user_id, today):
 
 def reset_daily_tasks():
     global current_date
-    today = datetime.datetime.utcnow().date()
+    today = datetime.datetime.now(timezone("Asia/Tokyo")).date()
     logging.info(f"タスク実行 - 現在の日付: {today}, 記録された日付: {current_date}")  # 日付変更確認用のログ
 
     # 日付が変更された場合
