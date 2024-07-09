@@ -184,7 +184,7 @@ async def points(interaction: discord.Interaction, member: discord.Member = None
 async def give_points(interaction: discord.Interaction, member: discord.Member, points: int):
     user_points[member.id] += points
     save_data()  # データの保存
-    await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
+    await interaction.response.send_message(f'{member.mention} に {points}  ポイント🪙をプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
 
 @bot.tree.command(name="ランキング", description="所持ポイント数のランキングを表示します")
 async def ranking(interaction: discord.Interaction):
