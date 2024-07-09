@@ -182,18 +182,14 @@ async def points(interaction: discord.Interaction, member: discord.Member = None
 @bot.tree.command(name="ポイント贈答", description="他のメンバーにポイントをプレゼントします")
 @app_commands.describe(member="ポイントを贈るメンバー", points="贈答するポイント数")
 async def give_points(interaction: discord.Interaction, member: discord.Member, points: int):
-    if interaction.user.id in ADMIN_USER_IDS:
-        user_points[member.id] += points
-        save_data()  # データの保存
-        await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
-    else:
-        await interaction.response.send_message('このコマンドを実行する権限がありません。', ephemeral=True)
+    user_points[member.id] += points
+    save_data()  # データの保存
+    await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
 
-@bot.tree.command(name="ランキング", description="所持ポイント数と今月のメッセージ送信数のランキングを表示します")
+@bot.tree.command(name="ランキング", description="所持ポイント数のランキングを表示します")
 async def ranking(interaction: discord.Interaction):
     guild = interaction.guild  # サーバー（ギルド）情報を取得
     rankings = sorted([(user_id, points) for user_id, points in user_points.items() if user_id not in ADMIN_USER_IDS], key=lambda x: x[1], reverse=True)[:5]
-    message_counts = sorted([(user_id, count) for user_id, count in monthly_message_count.items() if user_id not in ADMIN_USER_IDS], key=lambda x: x[1], reverse=True)[:5]
     response = "**ポイントランキング**\n"
     for i, (user_id, points) in enumerate(rankings):
         member = guild.get_member(user_id)
@@ -206,18 +202,6 @@ async def ranking(interaction: discord.Interaction):
             except:
                 display_name = "Unknown User"
         response += f'{i+1}. {display_name}: {points} 🪙\n'
-    response += "\n**今月のメッセージ送信数ランキング**\n"
-    for i, (user_id, count) in enumerate(message_counts):
-        member = guild.get_member(user_id)
-        if member:
-            display_name = member.display_name
-        else:
-            try:
-                user = await bot.fetch_user(user_id)
-                display_name = user.name  # display_nameではなくnameを使用する
-            except:
-                display_name = "Unknown User"
-        response += f'{i+1}. {display_name}: {count} メッセージ\n'
     await interaction.response.send_message(response, ephemeral=True)
 
 @bot.tree.command(name="コマンド_説明", description="使用できるコマンド一覧とポイントの説明を表示します")
@@ -226,7 +210,7 @@ async def show_commands_description(interaction: discord.Interaction):
     **使用可能なコマンド一覧**
     /ポイント - 現在のポイントを表示 🪙
     /ポイント贈答 - 他のメンバーにポイントをプレゼント 🎁
-    /ランキング - ポイントと今月のメッセージ送信数のランキングを表示 👑
+    /ランキング - 所持ポイント数のランキングを表示 👑
     /コマンド_説明 - 使用できるコマンド一覧とポイントの説明を表示
     /ショップ - 商品交換リンクを表示 🛒
     これらのコマンドを送ると、ワレカラくんがあなただけに見えるメッセージを送ります📩（ポイント贈答は他のメンバーにも見えます）
@@ -246,7 +230,7 @@ async def shop(interaction: discord.Interaction):
     await interaction.response.send_message(response, ephemeral=True)
 
 # 管理者向けのポイントマイナス機能
-@bot.tree.command(name="ポイント減算", description="他のメンバーのポイントを減算します")
+@bot.tree.command(name="ポイント減算", description="ザッキーのみ使用可能。ポイントを減算します")
 @app_commands.describe(member="ポイントを減算するメンバー", points="減算するポイント数")
 async def subtract_points(interaction: discord.Interaction, member: discord.Member, points: int):
     if interaction.user.id in ADMIN_USER_IDS:
