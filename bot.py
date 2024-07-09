@@ -189,7 +189,7 @@ async def give_points(interaction: discord.Interaction, member: discord.Member, 
         if giver_id not in ADMIN_USER_IDS:
             user_points[giver_id] -= points
         save_data()  # データの保存
-        await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
+        await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。相手の現在のポイント: {user_points[member.id]} 🪙')
     else:
         await interaction.response.send_message(f'ポイントが足りません。現在の所持ポイント: {user_points[giver_id]} 🪙', ephemeral=True)
 
