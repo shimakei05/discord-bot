@@ -142,6 +142,7 @@ async def on_message(message):
     user_id = message.author.id
     today = current_date
 
+    logging.info(f'メッセージ検出: user_id={user_id}, message_id={message.id}')
     # メッセージを投稿するごとにポイントを30追加
     user_points[user_id] += 30
     monthly_message_count[user_id] += 1
