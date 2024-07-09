@@ -183,9 +183,15 @@ async def points(interaction: discord.Interaction, member: discord.Member = None
 @bot.tree.command(name="ポイント贈答", description="他のメンバーにポイントをプレゼントします")
 @app_commands.describe(member="ポイントを贈るメンバー", points="贈答するポイント数")
 async def give_points(interaction: discord.Interaction, member: discord.Member, points: int):
-    user_points[member.id] += points
-    save_data()  # データの保存
-    await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
+    giver_id = interaction.user.id
+    if giver_id in ADMIN_USER_IDS or user_points[giver_id] >= points:
+        user_points[member.id] += points
+        if giver_id not in ADMIN_USER_IDS:
+            user_points[giver_id] -= points
+        save_data()  # データの保存
+        await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
+    else:
+        await interaction.response.send_message(f'ポイントが足りません。現在の所持ポイント: {user_points[giver_id]} 🪙', ephemeral=True)
 
 # ランキングの部分を以下に修正
 @bot.tree.command(name="ランキング", description="所持ポイント数のランキングを表示します")
