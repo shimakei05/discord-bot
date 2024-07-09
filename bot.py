@@ -179,13 +179,15 @@ async def points(interaction: discord.Interaction, member: discord.Member = None
         points = user_points[user_id]
         await interaction.response.send_message(f'{interaction.user.mention} あなたのポイント: {points} 🪙', ephemeral=True)
 
+# ポイント贈答の部分を以下に修正
 @bot.tree.command(name="ポイント贈答", description="他のメンバーにポイントをプレゼントします")
 @app_commands.describe(member="ポイントを贈るメンバー", points="贈答するポイント数")
 async def give_points(interaction: discord.Interaction, member: discord.Member, points: int):
     user_points[member.id] += points
     save_data()  # データの保存
-    await interaction.response.send_message(f'{member.mention} に {points}  ポイント🪙をプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
+    await interaction.response.send_message(f'{member.mention} に {points} 🪙 ポイントをプレゼントしました。現在のポイント: {user_points[member.id]} 🪙')
 
+# ランキングの部分を以下に修正
 @bot.tree.command(name="ランキング", description="所持ポイント数のランキングを表示します")
 async def ranking(interaction: discord.Interaction):
     guild = interaction.guild  # サーバー（ギルド）情報を取得
@@ -203,6 +205,7 @@ async def ranking(interaction: discord.Interaction):
                 display_name = "Unknown User"
         response += f'{i+1}. {display_name}: {points} 🪙\n'
     await interaction.response.send_message(response, ephemeral=True)
+
 
 @bot.tree.command(name="コマンド_説明", description="使用できるコマンド一覧とポイントの説明を表示します")
 async def show_commands_description(interaction: discord.Interaction):
