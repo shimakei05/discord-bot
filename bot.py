@@ -89,6 +89,7 @@ async def on_resumed():
 def check_and_give_login_bonus(user_id, today):
     last_login = last_login_date[user_id]
     bonus_message = ""
+    logging.info(f'チェック中: user_id={user_id}, last_login={last_login}, today={today}')
     if last_login is None or last_login != today:
         user_points[user_id] += 50
         bonus_message = "ログインボーナスとして 50 🪙 ポイントを獲得しました！"
@@ -110,7 +111,9 @@ def check_and_give_login_bonus(user_id, today):
             login_streaks[user_id] = 0
 
         last_login_date[user_id] = today
+        logging.info(f'ログインボーナス付与: user_id={user_id}, streak_days={streak_days}, points={user_points[user_id]}')
         return bonus_message
+    logging.info(f'ログインボーナスなし: user_id={user_id}, last_login={last_login}, today={today}')
     return bonus_message
 
 def reset_daily_tasks():
@@ -159,6 +162,7 @@ async def on_reaction_add(reaction, user):
     user_id = user.id
     today = datetime.datetime.now(timezone("Asia/Tokyo")).date()
 
+    logging.info(f'リアクション検出: user_id={user_id}, reaction={reaction.emoji}, message_id={reaction.message.id}')
     # リアクションするごとにポイントを5追加
     user_points[user_id] += 5
     save_data()  # データの保存
