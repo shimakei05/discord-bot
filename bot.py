@@ -19,7 +19,7 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DATA_FILE = "user_data.json"
 
 # 管理者のユーザーID
-ADMIN_USER_IDS = {726414082915172403}  # ここに管理者のユーザーIDを追加
+ADMIN_USER_IDS = {720219524531748884}  # ここに管理者のユーザーIDを追加
 
 # インテントの設定
 intents = discord.Intents.default()
