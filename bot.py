@@ -157,7 +157,7 @@ async def on_reaction_add(reaction, user):
         return
 
     user_id = user.id
-    today = current_date
+    today = datetime.datetime.now(timezone("Asia/Tokyo")).date()
 
     # リアクションするごとにポイントを5追加
     user_points[user_id] += 5
